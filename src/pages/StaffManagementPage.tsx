@@ -80,7 +80,7 @@ export default function StaffManagementPage() {
       
       if (error) throw error
       
-      addToast("Employé ajouté", "success")
+      addToast(t('staff.staff_added'), "success")
       setShowAdd(false)
       setName('')
       setPin('')
@@ -105,7 +105,7 @@ export default function StaffManagementPage() {
       
       if (error) throw error
       
-      addToast("Employé supprimé", "success")
+      addToast(t('staff.staff_deleted'), "success")
       setStaffToDelete(null)
       loadStaff()
     } catch (error: any) {
@@ -124,7 +124,7 @@ export default function StaffManagementPage() {
       
       if (error) throw error
       loadStaff()
-      addToast(staff.active ? "Employé désactivé" : "Employé activé", "success")
+      addToast(staff.active ? t('staff.staff_deactivated') : t('staff.staff_activated'), "success")
     } catch (error: any) {
       addToast(error.message, 'error')
     }
@@ -152,7 +152,7 @@ export default function StaffManagementPage() {
       
       if (error) throw error
       
-      addToast("Employé mis à jour", "success")
+      addToast(t('staff.staff_updated'), "success")
       setShowEdit(false)
       setEditingStaff(null)
       setName('')
@@ -195,7 +195,7 @@ export default function StaffManagementPage() {
         <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-text3 hover:text-text">
           <ChevronLeft size={20} />
         </button>
-        <h1 className="text-sm font-bold text-text">Mon équipe</h1>
+        <h1 className="text-sm font-bold text-text">{t('staff.title')}</h1>
         <button onClick={() => setShowAdd(true)} className="p-2 -mr-2 text-accent hover:text-accent2">
           <Plus size={20} />
         </button>
@@ -204,7 +204,7 @@ export default function StaffManagementPage() {
       <main className="pt-20 px-4 space-y-4">
         <div className="space-y-3">
           <Input
-            placeholder="Rechercher un employé..."
+            placeholder={t('staff.search_placeholder')}
             icon={<Search size={18} />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -212,9 +212,9 @@ export default function StaffManagementPage() {
           
           <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             {[
-              { id: 'all', label: 'Tous' },
-              { id: 'active', label: 'Actifs' },
-              { id: 'inactive', label: 'Inactifs' },
+              { id: 'all', label: t('common.all') },
+              { id: 'active', label: t('staff.active') },
+              { id: 'inactive', label: t('staff.inactive') },
             ].map(f => (
               <button
                 key={f.id}
@@ -254,12 +254,12 @@ export default function StaffManagementPage() {
                   staff.active ? 'bg-success-dim text-success hover:bg-success/20' : 'bg-surface2 text-text3 hover:bg-surface3'
                 }`}
               >
-                {staff.active ? 'Actif' : 'Inactif'}
+                {staff.active ? t('staff.active') : t('staff.inactive')}
               </button>
               <button 
                 onClick={() => toggleStaffActive(staff)}
                 className={`p-2 rounded-lg transition-colors ${staff.active ? 'text-success hover:bg-success/10' : 'text-text3 hover:bg-surface2'}`}
-                title={staff.active ? "Désactiver" : "Activer"}
+                title={staff.active ? t('staff.deactivate') : t('staff.activate')}
               >
                 <Power size={18} />
               </button>
@@ -277,7 +277,7 @@ export default function StaffManagementPage() {
           <div className="flex flex-col items-center justify-center py-12 text-text3">
             <Users size={40} className="mb-4 opacity-20" />
             <p className="text-sm font-medium">
-              {search || statusFilter !== 'all' ? "Aucun employé ne correspond à votre recherche" : "Aucun employé ajouté"}
+              {search || statusFilter !== 'all' ? t('staff.no_results') : t('staff.no_staff')}
             </p>
           </div>
         )}
@@ -294,11 +294,11 @@ export default function StaffManagementPage() {
           setPermissions({ sessions: true, reports: false, clients: false, settings: false })
           setIsActive(true)
         }} 
-        title={showEdit ? "Modifier l'employé" : "Nouvel employé"}
+        title={showEdit ? t('staff.edit_staff') : t('staff.add')}
       >
         <div className="space-y-8 pt-4">
           <Input
-            placeholder="Nom de l'employé"
+            placeholder={t('staff.name')}
             icon={<User size={18} />}
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -306,7 +306,7 @@ export default function StaffManagementPage() {
 
           <div className="flex flex-col items-center gap-4">
             <label className="text-xs font-bold text-text3 uppercase tracking-widest">
-              {showEdit ? "Nouveau PIN (optionnel)" : "Code PIN (4 chiffres)"}
+              {showEdit ? t('staff.new_pin') : t('staff.pin_setup')}
             </label>
             <PINDots length={pin.length} />
             <NumPad
@@ -329,8 +329,8 @@ export default function StaffManagementPage() {
                   <Check size={16} />
                 </div>
                 <div className="text-left">
-                  <div className="text-sm font-bold text-text">{isActive ? 'Compte Actif' : 'Compte Inactif'}</div>
-                  <div className="text-[10px] text-text3">L'employé {isActive ? 'peut' : 'ne peut plus'} se connecter</div>
+                  <div className="text-sm font-bold text-text">{isActive ? t('staff.account_active') : t('staff.account_inactive')}</div>
+                  <div className="text-[10px] text-text3">{isActive ? t('staff.can_login') : t('staff.cannot_login')}</div>
                 </div>
               </div>
               <div className={`w-10 h-5 rounded-full relative transition-colors ${isActive ? 'bg-success' : 'bg-border'}`}>
@@ -343,13 +343,13 @@ export default function StaffManagementPage() {
           </div>
 
           <div className="space-y-4">
-            <label className="text-xs font-bold text-text3 uppercase tracking-widest">Droits d'accès</label>
+            <label className="text-xs font-bold text-text3 uppercase tracking-widest">{t('staff.permissions')}</label>
             <div className="space-y-2">
               {[
-                { id: 'sessions', icon: Timer, label: 'Gérer les sessions', locked: true },
-                { id: 'reports', icon: BarChart2, label: 'Voir les rapports' },
-                { id: 'clients', icon: Users, label: 'Gérer les clients' },
-                { id: 'settings', icon: Settings, label: 'Paramètres' },
+                { id: 'sessions', icon: Timer, label: t('staff.perm_sessions'), locked: true },
+                { id: 'reports', icon: BarChart2, label: t('staff.perm_reports') },
+                { id: 'clients', icon: Users, label: t('staff.perm_clients') },
+                { id: 'settings', icon: Settings, label: t('staff.perm_settings') },
               ].map(perm => (
                 <button
                   key={perm.id}
@@ -362,7 +362,7 @@ export default function StaffManagementPage() {
                     <perm.icon size={18} className={permissions[perm.id as keyof typeof permissions] ? 'text-accent' : 'text-text3'} />
                     <div className="text-left">
                       <div className="text-sm font-bold text-text">{perm.label}</div>
-                      {perm.locked && <div className="text-[10px] text-text3 italic">Toujours activé</div>}
+                      {perm.locked && <div className="text-[10px] text-text3 italic">{t('staff.always_on')}</div>}
                     </div>
                   </div>
                   <div className={`w-10 h-5 rounded-full relative transition-colors ${
@@ -384,7 +384,7 @@ export default function StaffManagementPage() {
             isLoading={isSaving}
             disabled={!name || (!showEdit && pin.length < 4)}
           >
-            {showEdit ? "Enregistrer les modifications" : "Créer l'employé"}
+            {showEdit ? t('staff.save') : t('staff.create')}
           </Button>
         </div>
       </BottomSheet>
@@ -393,10 +393,10 @@ export default function StaffManagementPage() {
         isOpen={staffToDelete !== null}
         onClose={() => setStaffToDelete(null)}
         onConfirm={handleDeleteStaff}
-        title="Supprimer l'employé ?"
-        message={`Voulez-vous vraiment supprimer ${staffToDelete?.name} ? Cette action est irréversible.`}
+        title={t('staff.delete_staff')}
+        message={`${t('staff.delete_confirm')} ${staffToDelete?.name} ?`}
         variant="danger"
-        confirmLabel={isDeleting ? "Suppression..." : "Supprimer"}
+        confirmLabel={isDeleting ? t('staff.deleting') : t('staff.delete')}
       />
     </div>
   )

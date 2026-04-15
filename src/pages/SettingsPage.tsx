@@ -74,7 +74,7 @@ export default function SettingsPage() {
         <p className="text-[10px] text-text3 italic">Contactez le support pour modifier vos tarifs de base.</p>
       </div>
     )},
-    { id: 'products', icon: ShoppingBag, title: 'Catalogue Produits', onClick: () => navigate('/settings/products') },
+    { id: 'products', icon: ShoppingBag, title: t('settings.product_catalog'), onClick: () => navigate('/settings/products') },
     { id: 'staff', icon: Users, title: t('settings.team'), onClick: () => navigate('/settings/staff') },
     { id: 'invite', icon: Key, title: t('settings.invite_code'), content: (
       <div className="space-y-4 pt-4">
@@ -188,9 +188,9 @@ export default function SettingsPage() {
         isOpen={showLogout}
         onClose={() => setShowLogout(false)}
         onConfirm={handleLogout}
-        title="Déconnexion"
-        message="Êtes-vous sûr de vouloir vous déconnecter ?"
-        confirmLabel="Se déconnecter"
+        title={t('settings.logout')}
+        message={t('auth.logout_confirm')}
+        confirmLabel={t('settings.logout')}
         variant="danger"
       />
 
