@@ -101,26 +101,34 @@ export default function SettingsPage() {
       </div>
     )},
     { id: 'lang', icon: Globe, title: t('settings.language'), content: (
-      <div className="grid grid-cols-2 gap-3 pt-2">
+      <div className="space-y-2 pt-2">
         <button 
           onClick={() => setLanguage('fr')}
-          className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
-            language === 'fr' ? 'bg-accent-glow border-accent text-accent2' : 'bg-surface2 border-border text-text3'
+          className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${
+            language === 'fr' ? 'bg-accent-glow border-accent text-accent2' : 'bg-surface2 border-border text-text'
           }`}
         >
-          <span className="text-2xl">🇫🇷</span>
-          <span className="text-xs font-bold">Français</span>
-          {language === 'fr' && <Check size={14} />}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-[10px] font-bold text-text3">
+              FR
+            </div>
+            <span className="text-sm font-semibold">Français</span>
+          </div>
+          {language === 'fr' && <Check size={16} className="text-accent" />}
         </button>
         <button 
           onClick={() => setLanguage('en')}
-          className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
-            language === 'en' ? 'bg-accent-glow border-accent text-accent2' : 'bg-surface2 border-border text-text3'
+          className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${
+            language === 'en' ? 'bg-accent-glow border-accent text-accent2' : 'bg-surface2 border-border text-text'
           }`}
         >
-          <span className="text-2xl">🇺🇸</span>
-          <span className="text-xs font-bold">English</span>
-          {language === 'en' && <Check size={14} />}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-[10px] font-bold text-text3">
+              EN
+            </div>
+            <span className="text-sm font-semibold">English</span>
+          </div>
+          {language === 'en' && <Check size={16} className="text-accent" />}
         </button>
       </div>
     )},

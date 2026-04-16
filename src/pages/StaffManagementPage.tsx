@@ -343,16 +343,16 @@ export default function StaffManagementPage() {
             />
           </div>
 
-          <div className="space-y-4">
-            <label className="text-xs font-bold text-text3 uppercase tracking-widest">Statut du compte</label>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-text3 uppercase tracking-widest">Statut du compte</label>
             <button
               onClick={() => setIsActive(!isActive)}
               className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${
-                isActive ? 'bg-success-dim border-success/30' : 'bg-surface2 border-border'
+                isActive ? 'bg-[#0f2922] border-[#134e3a]' : 'bg-surface2 border-border'
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isActive ? 'bg-success text-white' : 'bg-text3 text-white'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isActive ? 'bg-success text-white' : 'bg-border text-text3'}`}>
                   <Check size={16} />
                 </div>
                 <div className="text-left">
@@ -363,14 +363,14 @@ export default function StaffManagementPage() {
               <div className={`w-10 h-5 rounded-full relative transition-colors ${isActive ? 'bg-success' : 'bg-border'}`}>
                 <motion.div 
                   animate={{ x: isActive ? 22 : 2 }}
-                  className="absolute top-1 w-3 h-3 bg-white rounded-full"
+                  className="absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm"
                 />
               </div>
             </button>
           </div>
 
-          <div className="space-y-4">
-            <label className="text-xs font-bold text-text3 uppercase tracking-widest">{t('staff.permissions')}</label>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-text3 uppercase tracking-widest">{t('staff.permissions')}</label>
             <div className="space-y-2">
               {[
                 { id: 'sessions', icon: Timer, label: t('staff.perm_sessions'), locked: true },
@@ -382,7 +382,7 @@ export default function StaffManagementPage() {
                   key={perm.id}
                   onClick={() => togglePermission(perm.id as any)}
                   className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${
-                    permissions[perm.id as keyof typeof permissions] ? 'bg-accent-glow border-accent' : 'bg-surface2 border-border'
+                    permissions[perm.id as keyof typeof permissions] ? 'bg-[#2a1a14] border-accent' : 'bg-surface2 border-border'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -397,7 +397,7 @@ export default function StaffManagementPage() {
                   }`}>
                     <motion.div 
                       animate={{ x: permissions[perm.id as keyof typeof permissions] ? 22 : 2 }}
-                      className="absolute top-1 w-3 h-3 bg-white rounded-full"
+                      className="absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm"
                     />
                   </div>
                 </button>
