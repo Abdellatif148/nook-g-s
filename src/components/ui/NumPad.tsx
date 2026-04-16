@@ -25,9 +25,9 @@ export const NumPad = ({ onPress, onDelete, onConfirm, showConfirm, className }:
           return (
             <motion.button
               key={key}
-              whileTap={{ scale: 0.92 }}
+              whileTap={{ scale: 0.90 }}
               onClick={onDelete}
-              className="h-14 flex items-center justify-center bg-surface2 border border-border rounded-lg text-text2 hover:bg-white/5"
+              className="h-[58px] flex items-center justify-center bg-surface2 border border-border rounded-[10px] text-text2 active:bg-accent-glow"
             >
               <Delete size={20} />
             </motion.button>
@@ -37,12 +37,12 @@ export const NumPad = ({ onPress, onDelete, onConfirm, showConfirm, className }:
           return (
             <motion.button
               key={key}
-              whileTap={{ scale: 0.92 }}
+              whileTap={{ scale: 0.90 }}
               onClick={onConfirm}
               disabled={!showConfirm}
               className={cn(
-                'h-14 flex items-center justify-center bg-surface2 border border-border rounded-lg transition-all',
-                showConfirm ? 'text-success bg-success-dim border-success/20' : 'text-text3 opacity-50'
+                'h-[58px] flex items-center justify-center bg-surface2 border border-border rounded-[10px] transition-all active:bg-accent-glow',
+                showConfirm ? 'text-success' : 'text-text3 opacity-0 pointer-events-none'
               )}
             >
               <Check size={20} />
@@ -52,9 +52,9 @@ export const NumPad = ({ onPress, onDelete, onConfirm, showConfirm, className }:
         return (
           <motion.button
             key={key}
-            whileTap={{ scale: 0.92 }}
+            whileTap={{ scale: 0.90 }}
             onClick={() => onPress(key)}
-            className="h-14 flex items-center justify-center bg-surface2 border border-border rounded-lg text-text font-mono text-xl font-semibold hover:bg-white/5"
+            className="h-[58px] flex items-center justify-center bg-surface2 border border-border rounded-[10px] text-text font-mono text-[22px] font-semibold active:bg-accent-glow"
           >
             {key}
           </motion.button>

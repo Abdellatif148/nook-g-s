@@ -2,370 +2,395 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { 
-  ChevronLeft, MoreVertical, Clock, Gauge, AlertCircle, 
-  ShoppingBag, Plus, StopCircle, Edit2, Trash2, CheckCircle,
-  Banknote, CreditCard, Wallet, Gift, Loader2
+  ChevronLeft,
+  MoreVertical,
+  Clock,
+  Gauge,
+  AlertCircle,
+  ShoppingBag,
+  Plus,
+  Trash2,
+  StopCircle,
+  X,
+  Minus,
+  Banknote,
+  CreditCard,
+  Wallet,
+  Gift,
+  CheckCircle,
+  AlertTriangle,
+  Search,
+  TrendingDown,
+  Users,
+  Armchair
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
+import { useSessionStore } from '../stores/sessionStore'
 import { useUIStore } from '../stores/uiStore'
-import { useTranslation } from '../i18n'
+import { useTranslation } from '../hooks/useTranslation'
 import { Button } from '../components/ui/Button'
-import { Session, Product } from '../types'
 import { BottomSheet } from '../components/ui/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { Input } from '../components/ui/Input'
 import { format } from 'date-fns'
 
 export default function SessionDetailPage() {
   const { id } = useParams()
-  const { t } = useTranslation()
   const navigate = useNavigate()
-  const { cafe, type } = useAuthStore()
-  const addToast = useUIStore((state) => state.addToast)
+  const { t } = useTranslation()
+  const { cafe, type, owner, staff } = useAuthStore()
+  const { activeSessions } = useSessionStore()
+  const { addToast } = useUIStore()
 
-  const [session, setSession] = useState<Session | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [elapsed, setElapsed] = useState('')
+  const [session, setSession] = useState<any>(null)
+  const [elapsed, setElapsed] = useState('00:00:00')
   const [timeCost, setTimeCost] = useState(0)
   const [isLong, setIsLong] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isEnding, setIsEnding] = useState(false)
   
   const [showExtras, setShowExtras] = useState(false)
   const [showEnd, setShowEnd] = useState(false)
-  const [showCancel, setShowCancel] = useState(false)
-  
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<any[]>([])
   const [selectedExtras, setSelectedExtras] = useState<Record<string, number>>({})
-  const [itemToRemove, setItemToRemove] = useState<number | null>(null)
 
-  useEffect(() => {
-    const loadSession = async () => {
-      if (!id) return
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', id)
-        .single()
-      
-      if (error || !data) {
-        addToast("Session non trouvée", "error")
-        navigate('/dashboard')
-        return
-      }
+  // End session flow
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null)
+  const [receivedAmount, setReceivedAmount] = useState('')
+  const [selectedClient, setSelectedClient] = useState<any>(null)
+  const [clientSearch, setClientSearch] = useState('')
+  const [clientResults, setClientResults] = useState<any[]>([])
+
+  const loadSession = async () => {
+    const active = activeSessions.find(s => s.id === id)
+    if (active) {
+      setSession(active)
+    } else {
+      const { data } = await supabase.from('sessions').select('*').eq('id', id).single()
       setSession(data)
-      setIsLoading(false)
     }
-
-    const loadProducts = async () => {
-      if (!cafe) return
-      const { data } = await supabase
-        .from('products')
-        .select('*')
-        .eq('cafe_id', cafe.id)
-        .eq('active', true)
-        .order('sort_order')
-      if (data) setProducts(data)
-    }
-
-    loadSession()
-    loadProducts()
-  }, [id, cafe])
+    setIsLoading(false)
+  }
 
   useEffect(() => {
-    if (!session) return
+    loadSession()
+  }, [id, activeSessions])
+
+  useEffect(() => {
+    if (session?.status !== 'active') return
+
     const update = () => {
       const start = new Date(session.started_at).getTime()
-      const now = new Date().getTime()
-      const diffMs = now - start
+      const now = Date.now()
+      const diffSec = Math.floor((now - start) / 1000)
       
-      const hours = Math.floor(diffMs / 3600000)
-      const minutes = Math.floor((diffMs % 3600000) / 60000)
-      const seconds = Math.floor((diffMs % 60000) / 1000)
+      const hours = Math.floor(diffSec / 3600)
+      const minutes = Math.floor((diffSec % 3600) / 60)
+      const seconds = diffSec % 60
       
       setElapsed(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
       
-      const durationHours = diffMs / 3600000
-      setTimeCost(durationHours * session.rate_per_hour)
-      if (hours >= 3) setIsLong(true)
+      const rate = Number(session.rate_per_hour) || 0
+      const cost = (diffSec / 3600) * rate
+      setTimeCost(cost)
+
+      const alertLimit = Number(cafe?.long_session_alert_hours) || 3
+      if (Number(hours) >= Number(alertLimit)) setIsLong(true)
     }
 
     update()
     const interval = setInterval(update, 1000)
-    return () => clearInterval(interval)
-  }, [session])
+    const handleVisibility = () => { if (document.visibilityState === 'visible') update() }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [session, cafe])
+
+  useEffect(() => {
+    if (showExtras) {
+      const loadProducts = async () => {
+        const { data } = await supabase.from('products').select('*').eq('cafe_id', cafe?.id).eq('active', true).order('sort_order')
+        if (data) setProducts(data)
+      }
+      loadProducts()
+    }
+  }, [showExtras, cafe])
+
+  useEffect(() => {
+    if (clientSearch.length >= 2) {
+      const searchClients = async () => {
+        const { data } = await supabase.from('client_accounts').select('*').eq('cafe_id', cafe?.id).ilike('name', `%${clientSearch}%`).limit(5)
+        setClientResults(data || [])
+      }
+      searchClients()
+    } else {
+      setClientResults([])
+    }
+  }, [clientSearch, cafe])
 
   const handleAddExtras = async () => {
-    if (!session) return
-    const newExtras = [...(session.extras as any[])]
-    let newExtrasTotal = session.extras_total
+    const newItems = Object.entries(selectedExtras)
+      .filter(([_, qty]) => (qty as number) > 0)
+      .map(([pid, qty]) => {
+        const p = products.find(prod => prod.id === pid)
+        return { id: pid, name: p.name, price: p.price, qty }
+      })
 
-    Object.entries(selectedExtras).forEach(([prodId, qty]: [string, any]) => {
-      if (qty <= 0) return
-      const product = products.find(p => p.id === prodId)
-      if (product) {
-        newExtras.push({ id: prodId, name: product.name, price: product.price, qty })
-        newExtrasTotal += product.price * qty
-      }
-    })
+    const updatedExtras = [...(session.extras as any[]), ...newItems]
+    const extrasTotal = updatedExtras.reduce((acc, e) => acc + ((e.price as number) * (e.qty as number)), 0)
 
     try {
-      const { data, error } = await supabase
-        .from('sessions' as any)
-        .update({ extras: newExtras, extras_total: newExtrasTotal })
+      const { error } = await supabase
+        .from('sessions')
+        .update({ extras: updatedExtras, extras_total: extrasTotal })
         .eq('id', session.id)
-        .select()
-        .single()
-      
+
       if (error) throw error
-      setSession(data)
+
+      await supabase.from('audit_log').insert({
+        cafe_id: cafe?.id,
+        staff_id: type === 'owner' ? owner?.id : staff?.id,
+        is_owner: type === 'owner',
+        action: 'extras_added',
+        details: { items: newItems, total: extrasTotal }
+      })
+
       setShowExtras(false)
       setSelectedExtras({})
       addToast("Consommations ajoutées", "success")
-    } catch (error: any) {
-      addToast(error.message, 'error')
+      loadSession()
+    } catch (err: any) {
+      addToast(err.message, "error")
     }
   }
 
-  const handleRemoveExtra = async (index: number) => {
-    if (!session) return
-    const newExtras = [...(session.extras as any[])]
-    const removed = newExtras.splice(index, 1)[0]
-    const newExtrasTotal = session.extras_total - (removed.price * removed.qty)
+  const handleEndSession = async () => {
+    if (!paymentMethod) return
+    setIsEnding(true)
+
+    const now = new Date().toISOString()
+    const duration = Math.floor((Date.now() - new Date(session.started_at).getTime()) / 60000)
+    const rate = Number(session.rate_per_hour) || 0
+    const finalTimeCost = (duration / 60) * rate
+    const extrasT = Number(session.extras_total) || 0
+    const total = Number(finalTimeCost) + Number(extrasT)
 
     try {
-      const { data, error } = await supabase
-        .from('sessions' as any)
-        .update({ extras: newExtras, extras_total: newExtrasTotal })
-        .eq('id', session.id)
-        .select()
-        .single()
-      
-      if (error) throw error
-      setSession(data)
-      addToast("Article supprimé", "success")
-    } catch (error: any) {
-      addToast(error.message, 'error')
-    }
-  }
+      const updates: any = {
+        status: 'completed',
+        ended_at: now,
+        duration_minutes: duration,
+        time_cost: finalTimeCost,
+        payment_method: paymentMethod,
+        total_amount: total,
+        amount_received: paymentMethod === 'cash' ? parseFloat(receivedAmount) : null,
+        change_given: paymentMethod === 'cash' ? parseFloat(receivedAmount) - total : null,
+        client_account_id: selectedClient?.id || session.client_account_id
+      }
 
-  const handleEndSession = async (method: string) => {
-    if (!session) return
-    setIsLoading(true)
-    try {
-      const start = new Date(session.started_at).getTime()
-      const end = new Date().getTime()
-      const durationMinutes = Math.floor((end - start) / 60000)
-      const finalTimeCost = (durationMinutes / 60) * session.rate_per_hour
-      const totalAmount = finalTimeCost + session.extras_total
-
-      const { error } = await supabase
-        .from('sessions' as any)
-        .update({
-          status: 'completed',
-          ended_at: new Date().toISOString(),
-          duration_minutes: durationMinutes,
-          time_cost: finalTimeCost,
-          total_amount: totalAmount,
-          payment_method: method
-        })
-        .eq('id', session.id)
-      
+      const { error } = await supabase.from('sessions').update(updates).eq('id', session.id)
       if (error) throw error
 
-      addToast(`Session clôturée — ${totalAmount.toFixed(2)} DH`, "success")
+      if (paymentMethod === 'account' && (selectedClient || session.client_account_id)) {
+        const clientId = selectedClient?.id || session.client_account_id
+        const { data: currentClient } = await supabase.from('client_accounts').select('*').eq('id', clientId).single()
+
+        if (currentClient) {
+          const newBalance = Number(currentClient.balance) - total
+          await supabase.from('client_accounts').update({
+            balance: newBalance,
+            total_visits: Number(currentClient.total_visits) + 1,
+            total_spent: Number(currentClient.total_spent) + total
+          }).eq('id', clientId)
+
+          await supabase.from('balance_transactions').insert({
+            cafe_id: cafe?.id,
+            client_id: clientId,
+            session_id: session.id,
+            staff_id: type === 'owner' ? owner?.id : staff?.id,
+            type: 'debit',
+            amount: total,
+            balance_before: currentClient.balance,
+            balance_after: newBalance,
+            description: `Session Place ${session.seat_number}`
+          })
+        }
+      } else if (selectedClient || session.client_account_id) {
+        const clientId = selectedClient?.id || session.client_account_id
+        const { data: c } = await supabase.from('client_accounts').select('total_visits, total_spent').eq('id', clientId).single()
+        if (c) {
+          await supabase.from('client_accounts').update({
+            total_visits: Number(c.total_visits) + 1,
+            total_spent: Number(c.total_spent) + total
+          }).eq('id', clientId)
+        }
+      }
+
+      await supabase.from('audit_log').insert({
+        cafe_id: cafe?.id,
+        staff_id: type === 'owner' ? owner?.id : staff?.id,
+        is_owner: type === 'owner',
+        action: 'session_closed',
+        details: { payment_method: paymentMethod, total_amount: total, duration_minutes: duration }
+      })
+
+      addToast("Session clôturée", "success")
       navigate('/dashboard')
-    } catch (error: any) {
-      addToast(error.message, 'error')
+    } catch (err: any) {
+      addToast(err.message, "error")
     } finally {
-      setIsLoading(false)
+      setIsEnding(false)
     }
   }
 
-  if (isLoading || !session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
-        <Loader2 className="animate-spin text-accent" size={32} />
-      </div>
-    )
-  }
+  if (isLoading || !session) return null
 
-  const totalAmount = timeCost + session.extras_total
+  const currentExtrasTotal = Number(session.extras_total) || 0
+  const totalAmount = session.status === 'active' ? (timeCost + currentExtrasTotal) : Number(session.total_amount)
 
   return (
-    <div className="min-h-screen bg-bg pb-32">
-      <header className="fixed top-0 left-0 right-0 h-14 bg-bg/90 backdrop-blur-xl border-b border-border z-[100] flex items-center justify-between px-4">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-text3 hover:text-text">
-          <ChevronLeft size={20} />
+    <div className="min-h-screen bg-bg relative pb-32">
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
+           style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+
+      <header className="fixed top-0 left-0 right-0 h-14 bg-bg/92 backdrop-blur-md border-b border-border z-[100] flex items-center justify-between px-4">
+        <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-text2 hover:text-text">
+          <ChevronLeft size={22} />
         </button>
-        <h1 className="text-sm font-bold text-text">Place {session.seat_number}</h1>
-        <button className="p-2 -mr-2 text-text3 hover:text-text">
-          <MoreVertical size={20} />
-        </button>
+        <span className="text-base font-bold text-text">Place {session.seat_number}</span>
+        <div className="flex items-center">
+          <button className="p-2 -mr-2 text-text2 hover:text-text">
+            <MoreVertical size={20} />
+          </button>
+        </div>
       </header>
 
-      <main className="pt-20 px-4 space-y-6">
-        {/* Timer Card */}
+      <main className="pt-20 px-4 space-y-6 relative z-10">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="p-8 rounded-3xl border border-accent/20 bg-linear-to-br from-accent/10 via-surface to-transparent flex flex-col items-center text-center relative overflow-hidden shadow-2xl shadow-accent/10"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-8 rounded-2xl border flex flex-col items-center ${
+            session.status === 'active'
+              ? (isLong ? 'border-[rgba(245,158,11,0.4)] bg-linear-to-b from-[rgba(245,158,11,0.08)] to-transparent' : 'border-accent-border bg-linear-to-b from-[rgba(249,115,22,0.08)] to-transparent')
+              : 'border-border bg-bg2'
+          }`}
         >
-          <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-transparent via-accent to-transparent opacity-50" />
-          
-          <div className="text-xs font-bold text-accent uppercase tracking-widest mb-2">{session.customer_name}</div>
-          <motion.div 
-            animate={{ scale: [1, 1.02, 1] }}
-            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-            className="text-6xl font-mono font-black text-text tracking-tighter mb-6 drop-shadow-glow"
-          >
-            {elapsed}
-          </motion.div>
-          
-          <div className="flex gap-6">
-            <div className="flex items-center gap-2 text-text3 text-[10px] font-bold uppercase tracking-wider">
-              <Clock size={12} className="text-accent" />
-              {format(new Date(session.started_at), 'HH:mm')}
+          <span className="text-[15px] font-medium text-text2 mb-4">{session.customer_name}</span>
+          {session.status === 'active' ? (
+            <motion.div 
+              animate={{ scale: [1, 1.006, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="text-[52px] font-mono font-extrabold text-text leading-none mb-6"
+            >
+              {elapsed}
+            </motion.div>
+          ) : (
+            <div className="text-[42px] font-mono font-extrabold text-text3 leading-none mb-6">
+              {Math.floor(Number(session.duration_minutes || 0) / 60).toString().padStart(2, '0')}:{(Number(session.duration_minutes || 0) % 60).toString().padStart(2, '0')}:00
             </div>
-            <div className="flex items-center gap-2 text-text3 text-[10px] font-bold uppercase tracking-wider">
-              <Gauge size={12} className="text-accent2" />
-              {session.rate_per_hour.toFixed(2)} DH/h
+          )}
+
+          <div className="flex gap-4">
+            <div className="flex items-center gap-1.5 text-[12px] text-text2">
+              <Clock size={13} className="text-text3" />
+              <span>{session.status === 'active' ? 'Démarré à' : 'Fini à'} {format(new Date(session.status === 'active' ? session.started_at : (session.ended_at || session.started_at)), 'HH:mm')}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[12px] text-text2">
+              <Gauge size={13} className="text-text3" />
+              <span>{Number(session.rate_per_hour)?.toFixed(2)} DH/h</span>
             </div>
           </div>
-
-          {isLong && (
-            <motion.div 
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              className="mt-6 px-4 py-2 bg-warning/10 border border-warning/20 rounded-full flex items-center gap-2 text-warning text-[10px] font-black uppercase tracking-widest"
-            >
-              <AlertCircle size={12} />
-              Session longue
-            </motion.div>
-          )}
         </motion.div>
 
-        {/* Bill Details */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-[10px] font-bold text-text3 uppercase tracking-widest">Détails de la facture</h3>
+        <section className="card space-y-0 divide-y divide-border">
+          <div className="flex items-center justify-between h-12">
+            <div className="flex items-center gap-2 text-[13px] text-text2">
+              <Clock size={14} className="text-text3" />
+              <span>{t('session.time_cost')}</span>
+            </div>
+            <span className="text-[13px] font-mono font-semibold text-accent2">{(session.status === 'active' ? timeCost : Number(session.time_cost || 0)).toFixed(2)} DH</span>
           </div>
 
-          {/* Time Card */}
-          <div className="p-4 bg-surface border border-border rounded-2xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center text-accent">
-                <Clock size={20} />
+          {(session.extras as any[]).map((extra, i) => (
+            <div key={i} className="flex items-center justify-between h-12">
+              <div className="flex items-center gap-2 text-[13px] text-text">
+                <ShoppingBag size={14} className="text-text3" />
+                <span className="truncate max-w-[180px]">{extra.qty}× {extra.name}</span>
               </div>
-              <div>
-                <div className="text-sm font-bold text-text">Temps de session</div>
-                <div className="text-[10px] text-text3 font-medium">
-                  {elapsed.split(':').slice(0, 2).join('h ')}min
-                </div>
-              </div>
+              <span className="text-[13px] font-mono font-semibold text-text">{(extra.price * extra.qty).toFixed(2)} DH</span>
             </div>
-            <div className="text-right">
-              <div className="text-sm font-mono font-bold text-accent2">
-                {timeCost.toFixed(2)} DH
-              </div>
-            </div>
-          </div>
+          ))}
 
-          {/* Extras Cards */}
-          {(session.extras as any[]).length > 0 && (
-            <div className="grid grid-cols-1 gap-3">
-              {(session.extras as any[]).map((extra, i) => (
-                <div key={i} className="p-4 bg-surface border border-border rounded-2xl flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-surface2 rounded-lg flex items-center justify-center text-text3">
-                      <ShoppingBag size={20} />
-                    </div>
-                    <div>
-                      <div className="text-sm font-bold text-text">{extra.name}</div>
-                      <div className="text-[10px] text-text3 font-medium">
-                        {extra.qty} × {extra.price.toFixed(2)} DH
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="text-sm font-mono font-bold text-text">
-                        {(extra.price * extra.qty).toFixed(2)} DH
-                      </div>
-                    </div>
-                    {type === 'owner' && (
-                      <button 
-                        onClick={() => setItemToRemove(i)}
-                        className="p-2 -mr-2 text-text3 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Total Summary */}
-          <div className="p-4 bg-surface border border-accent/20 rounded-2xl flex justify-between items-center shadow-lg shadow-accent/5">
-            <div className="text-sm font-bold text-text">Total à payer</div>
-            <div className="text-2xl font-mono font-extrabold text-accent2">{totalAmount.toFixed(2)} DH</div>
+          <div className="flex items-center justify-between pt-4 pb-1">
+            <span className="text-[14px] font-bold text-text">{t('session.total')}</span>
+            <span className="text-[18px] font-mono font-extrabold text-accent2">
+              {totalAmount.toFixed(2)} DH
+            </span>
           </div>
         </section>
 
-        <button
-          onClick={() => setShowExtras(true)}
-          className="w-full py-5 bg-surface2 border border-dashed border-border rounded-2xl flex items-center justify-center gap-3 text-text3 hover:text-accent hover:border-accent hover:bg-accent/5 transition-all group"
-        >
-          <div className="w-8 h-8 rounded-full bg-bg flex items-center justify-center group-hover:bg-accent group-hover:text-white transition-colors">
-            <Plus size={18} />
-          </div>
-          <span className="text-sm font-bold uppercase tracking-widest">{t('sessions.add_extra')}</span>
-        </button>
+        {session.status === 'active' && (
+          <button
+            onClick={() => setShowExtras(true)}
+            className="w-full h-[46px] border border-dashed border-border rounded-[10px] flex items-center justify-center gap-2 text-text2 hover:text-text transition-colors"
+          >
+            <Plus size={16} />
+            <span className="text-[13px] font-semibold">{t('session.add_extra')}</span>
+          </button>
+        )}
       </main>
 
-      {/* Bottom Action */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-linear-to-t from-bg via-bg to-transparent pt-12">
-        <Button
-          onClick={() => setShowEnd(true)}
-          className="w-full h-14 text-lg bg-linear-to-br from-error to-[#dc2626] shadow-error/30"
-        >
-          <StopCircle size={20} />
-          {t('sessions.end')}
-        </Button>
-      </div>
+      {session.status === 'active' && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-linear-to-t from-bg via-bg/80 to-transparent pt-8 z-50">
+          <button
+            onClick={() => setShowEnd(true)}
+            className="btn-danger w-full h-[52px] bg-linear-to-br from-[#ef4444] to-[#dc2626] text-white shadow-[0_4px_16px_rgba(239,68,68,0.3)] border-none"
+          >
+            <StopCircle size={18} />
+            {t('session.end')}
+          </button>
+        </div>
+      )}
 
-      {/* Extras Sheet */}
       <BottomSheet isOpen={showExtras} onClose={() => setShowExtras(false)} title="Consommations">
-        <div className="space-y-6 pt-4">
+        <div className="space-y-6 pt-2">
           {['boisson', 'nourriture', 'autre'].map(cat => {
             const catProducts = products.filter(p => p.category === cat)
             if (catProducts.length === 0) return null
             return (
               <div key={cat} className="space-y-3">
-                <h4 className="text-[10px] font-bold text-text3 uppercase tracking-widest">{cat}</h4>
-                <div className="grid grid-cols-2 gap-3">
+                <h4 className="text-[11px] font-bold text-text3 uppercase tracking-[0.1em]">{t(`cat.${cat}`)}</h4>
+                <div className="grid grid-cols-2 gap-2">
                   {catProducts.map(p => (
                     <div 
                       key={p.id} 
-                      className={`p-3 rounded-xl border transition-all ${
-                        selectedExtras[p.id] ? 'bg-accent-glow border-accent' : 'bg-surface2 border-border'
+                      className={`p-3 rounded-[10px] border transition-all ${
+                        selectedExtras[p.id] ? 'bg-accent-glow border-accent-border' : 'bg-surface2 border-border'
                       }`}
                     >
-                      <div className="text-sm font-bold text-text mb-1">{p.name}</div>
-                      <div className="text-xs text-accent2 font-mono mb-3">{p.price.toFixed(2)} DH</div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[13px] font-semibold text-text truncate pr-2">{p.name}</span>
+                        <span className="text-[12px] font-mono text-accent2 shrink-0">{p.price.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-3">
                         <button 
                           onClick={() => setSelectedExtras(prev => ({ ...prev, [p.id]: Math.max(0, (prev[p.id] || 0) - 1) }))}
-                          className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-text2 border border-border"
+                          className={`w-[28px] h-[28px] rounded-full flex items-center justify-center border transition-all ${
+                            selectedExtras[p.id] ? 'bg-surface border-border text-text' : 'border-border/50 text-text3 opacity-30'
+                          }`}
                         >
-                          -
+                          <Minus size={14} />
                         </button>
-                        <span className="text-sm font-bold font-mono">{selectedExtras[p.id] || 0}</span>
+                        <span className="text-[14px] font-mono font-bold">{selectedExtras[p.id] || 0}</span>
                         <button 
                           onClick={() => setSelectedExtras(prev => ({ ...prev, [p.id]: (prev[p.id] || 0) + 1 }))}
-                          className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-text2 border border-border"
+                          className="w-[28px] h-[28px] rounded-full flex items-center justify-center bg-surface border border-border text-text"
                         >
-                          +
+                          <Plus size={14} />
                         </button>
                       </div>
                     </div>
@@ -374,63 +399,160 @@ export default function SessionDetailPage() {
               </div>
             )
           })}
+        </div>
+        <div className="sticky bottom-0 bg-surface border-t border-border mt-8 -mx-4 px-4 py-4 flex items-center justify-between">
+          <div className="text-[13px] font-medium text-text2">
+            {Object.values(selectedExtras).reduce((a, b) => (a as number) + (b as number), 0)} article(s)
+          </div>
           <Button 
-            className="w-full h-14 mt-4" 
+            className="h-10 px-6 text-sm"
             onClick={handleAddExtras}
             disabled={Object.values(selectedExtras).every(v => v === 0)}
           >
-            Ajouter à la session
+            Ajouter
           </Button>
         </div>
       </BottomSheet>
 
-      {/* End Session Sheet */}
       <BottomSheet isOpen={showEnd} onClose={() => setShowEnd(false)} title="Clôturer la session">
-        <div className="space-y-8 pt-4">
-          <div className="bg-surface2 p-4 rounded-xl border border-border space-y-2">
-            <div className="flex justify-between text-xs text-text3">
-              <span>{session.customer_name} — Place {session.seat_number}</span>
-              <span>{elapsed.split(':').slice(0, 2).join('h ')}min</span>
+        <div className="space-y-6 pt-2">
+          <div className="bg-surface2 p-4 rounded-xl border border-border space-y-4">
+            <div className="flex flex-wrap gap-3">
+              <div className="flex items-center gap-1.5 text-[12px] text-text2">
+                <Users size={12} className="text-text3" /> {session.customer_name}
+              </div>
+              <div className="flex items-center gap-1.5 text-[12px] text-text2">
+                <Armchair size={12} className="text-text3" /> Place {session.seat_number}
+              </div>
+              <div className="flex items-center gap-1.5 text-[12px] text-text2">
+                <Clock size={12} className="text-text3" /> {elapsed.split(':').slice(0, 2).join('h ')}min
+              </div>
             </div>
-            <div className="flex justify-between items-baseline">
-              <span className="text-sm font-bold text-text">Total à payer</span>
-              <span className="text-2xl font-mono font-extrabold text-accent2">{totalAmount.toFixed(2)} DH</span>
+
+            <div className="space-y-1.5 pt-2 border-t border-border/50">
+              <div className="flex justify-between items-baseline pt-2">
+                <span className="text-[14px] font-bold">Total à payer</span>
+                <span className="text-[22px] font-mono font-extrabold text-accent2">{totalAmount.toFixed(2)} DH</span>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <label className="text-[10px] font-bold text-text3 uppercase tracking-widest">{t('sessions.payment_method')}</label>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
+            <label className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.payment')}</label>
+            <div className="grid grid-cols-2 gap-2">
               {[
                 { id: 'cash', icon: Banknote, label: t('sessions.cash') },
                 { id: 'card', icon: CreditCard, label: t('sessions.card') },
                 { id: 'account', icon: Wallet, label: t('sessions.account') },
                 { id: 'free', icon: Gift, label: t('sessions.free') },
               ].map(method => (
-                <button
+                <motion.button
                   key={method.id}
-                  onClick={() => handleEndSession(method.id)}
-                  className="h-20 flex flex-col items-center justify-center gap-2 bg-surface2 border border-border rounded-xl hover:border-accent transition-all active:scale-95"
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setPaymentMethod(method.id)}
+                  className={`h-[72px] flex flex-col items-center justify-center gap-1.5 rounded-[10px] border transition-all ${
+                    paymentMethod === method.id
+                      ? 'bg-accent-glow border-accent-border text-accent2 shadow-[0_0_12px_rgba(249,115,22,0.1)]'
+                      : 'bg-surface border-border text-text2'
+                  }`}
                 >
-                  <method.icon size={20} className="text-text2" />
-                  <span className="text-xs font-bold text-text">{method.label}</span>
-                </button>
+                  <method.icon size={20} />
+                  <span className="text-[13px] font-bold">{method.label}</span>
+                </motion.button>
               ))}
             </div>
           </div>
+
+          <AnimatePresence mode="wait">
+            {paymentMethod === 'cash' && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-3 overflow-hidden">
+                <div className="relative">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Montant reçu"
+                    value={receivedAmount}
+                    onChange={(e) => setReceivedAmount(e.target.value)}
+                    className="font-mono text-lg"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-text3 font-mono">DH</span>
+                </div>
+                {receivedAmount && (
+                  <div className={`text-[13px] font-bold ${parseFloat(receivedAmount) >= totalAmount ? 'text-success' : 'text-error'}`}>
+                    → {t('session.change')}: {(parseFloat(receivedAmount) - totalAmount).toFixed(2)} DH
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {paymentMethod === 'account' && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-3 overflow-hidden">
+                {!selectedClient && !session.client_account_id ? (
+                  <div className="relative">
+                    <Input
+                      placeholder="Chercher un compte client..."
+                      icon={<Search size={16} />}
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                    />
+                    <AnimatePresence>
+                      {clientResults.length > 0 && (
+                        <motion.div className="absolute top-full left-0 right-0 mt-1 bg-surface2 border border-border rounded-xl shadow-2xl z-20 py-1">
+                          {clientResults.map(c => (
+                            <button
+                              key={c.id}
+                              onClick={() => setSelectedClient(c)}
+                              className="w-full px-4 py-3 text-left hover:bg-white/5 flex justify-between items-center"
+                            >
+                              <span className="text-sm font-medium">{c.name}</span>
+                              <span className="text-xs font-mono text-text3">{Number(c.balance).toFixed(2)} DH</span>
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between bg-surface border border-border p-3 rounded-lg">
+                      <div>
+                        <div className="text-sm font-bold">{selectedClient?.name || 'Client lié'}</div>
+                        {selectedClient && <div className="text-xs text-text3">Solde: {Number(selectedClient.balance).toFixed(2)} DH</div>}
+                      </div>
+                      {!session.client_account_id && <button onClick={() => setSelectedClient(null)} className="text-text3 hover:text-error p-1"><X size={16} /></button>}
+                    </div>
+                    {selectedClient && Number(selectedClient.balance) < totalAmount && (
+                      <div className="p-3 bg-error-dim border border-[rgba(239,68,68,0.2)] rounded-lg flex items-center gap-3 text-error">
+                        <AlertTriangle size={16} />
+                        <span className="text-[12px] font-bold">Solde insuffisant</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="sticky bottom-0 bg-surface border-t border-border mt-8 -mx-4 px-4 py-4">
+          <Button
+            variant="success"
+            className="w-full h-[52px]"
+            disabled={!paymentMethod || (paymentMethod === 'cash' && (!receivedAmount || parseFloat(receivedAmount) < totalAmount)) || (paymentMethod === 'account' && !selectedClient && !session.client_account_id)}
+            onClick={handleEndSession}
+            isLoading={isEnding}
+          >
+            <CheckCircle size={18} />
+            {t('common.confirm')} {totalAmount.toFixed(2)} DH
+          </Button>
         </div>
       </BottomSheet>
 
       <ConfirmDialog
-        isOpen={itemToRemove !== null}
-        onClose={() => setItemToRemove(null)}
-        onConfirm={() => {
-          if (itemToRemove !== null) handleRemoveExtra(itemToRemove)
-          setItemToRemove(null)
-        }}
-        title="Supprimer l'article ?"
-        message="Voulez-vous vraiment retirer cet article de la session ?"
-        variant="danger"
+        isOpen={false}
+        onClose={() => {}}
+        onConfirm={() => {}}
+        title="" message=""
       />
     </div>
   )

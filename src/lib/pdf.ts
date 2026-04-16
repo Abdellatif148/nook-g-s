@@ -1,7 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
 import { Session, Cafe } from '../types'
 
 export const generateReportPDF = (cafe: Cafe, sessions: Session[], period: string) => {
@@ -10,13 +9,13 @@ export const generateReportPDF = (cafe: Cafe, sessions: Session[], period: strin
   
   // Header
   doc.setFontSize(22)
-  doc.setTextColor(249, 115, 22) // Accent color
-  doc.text('Nook OS - Rapport d\'activité', 14, 22)
+  doc.setTextColor(249, 115, 22) // #f97316
+  doc.text('Rapport Nook OS', 14, 22)
   
   doc.setFontSize(12)
   doc.setTextColor(100)
-  doc.text(`${cafe.name}`, 14, 32)
-  doc.text(`${cafe.address || ''}, ${cafe.city || ''}`, 14, 38)
+  doc.text(`Café: ${cafe.name}`, 14, 32)
+  doc.text(`Adresse: ${cafe.address || ''}, ${cafe.city || ''}`, 14, 38)
   doc.text(`Période: ${period}`, 14, 44)
   doc.text(`Généré le: ${now}`, 14, 50)
 
@@ -25,7 +24,7 @@ export const generateReportPDF = (cafe: Cafe, sessions: Session[], period: strin
   const totalSessions = sessions.length
   const avgSession = totalSessions > 0 ? totalRevenue / totalSessions : 0
 
-  doc.setDrawColor(200)
+  doc.setDrawColor(220)
   doc.line(14, 55, 196, 55)
   
   doc.setFontSize(14)
@@ -33,9 +32,13 @@ export const generateReportPDF = (cafe: Cafe, sessions: Session[], period: strin
   doc.text('Résumé', 14, 65)
   
   doc.setFontSize(10)
-  doc.text(`Chiffre d'affaires total: ${totalRevenue.toFixed(2)} DH`, 14, 75)
-  doc.text(`Nombre de sessions: ${totalSessions}`, 14, 82)
+  doc.text(`Nombre de sessions: ${totalSessions}`, 14, 75)
+  doc.text(`Chiffre d'affaires total (TTC): ${totalRevenue.toFixed(2)} DH`, 14, 82)
   doc.text(`Moyenne par session: ${avgSession.toFixed(2)} DH`, 14, 89)
+
+  // TVA Section
+  doc.text(`HT: ${(totalRevenue / 1.2).toFixed(2)} DH`, 130, 75)
+  doc.text(`TVA (20%): ${(totalRevenue * 0.2 / 1.2).toFixed(2)} DH`, 130, 82)
 
   // Table
   const tableData = sessions.map(s => [
@@ -49,10 +52,11 @@ export const generateReportPDF = (cafe: Cafe, sessions: Session[], period: strin
 
   autoTable(doc, {
     startY: 100,
-    head: [['Date', 'Client', 'Place', 'Durée', 'Paiement', 'Montant']],
+    head: [['Date/Heure', 'Client', 'Place', 'Durée', 'Paiement', 'Montant']],
     body: tableData,
     headStyles: { fillColor: [249, 115, 22] },
-    alternateRowStyles: { fillColor: [245, 245, 245] },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    margin: { top: 100 }
   })
 
   // Footer
@@ -61,7 +65,7 @@ export const generateReportPDF = (cafe: Cafe, sessions: Session[], period: strin
     doc.setPage(i)
     doc.setFontSize(8)
     doc.setTextColor(150)
-    doc.text(`Page ${i} sur ${pageCount} - Nook OS`, 105, 285, { align: 'center' })
+    doc.text(`Généré par Nook OS • nookos.ma — Page ${i} sur ${pageCount}`, 105, 285, { align: 'center' })
   }
 
   doc.save(`Rapport_${cafe.name.replace(/\s/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`)
