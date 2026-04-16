@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -16,7 +16,7 @@ interface PINDotsProps {
 export const PINDots = ({ length, maxLength = 4, className, error }: PINDotsProps) => {
   return (
     <motion.div
-      animate={error ? { x: [-4, 4, -4, 4, 0] } : {}}
+      animate={error ? { x: [-8, 8, -6, 6, 0] } : {}}
       transition={{ duration: 0.4 }}
       className={cn('flex justify-center gap-4', className)}
     >
@@ -24,14 +24,24 @@ export const PINDots = ({ length, maxLength = 4, className, error }: PINDotsProp
         <div
           key={i}
           className={cn(
-            'w-3 h-3 rounded-full border-2 transition-all duration-200',
+            'w-[14px] h-[14px] rounded-full border-2 transition-all duration-200 flex items-center justify-center',
             i < length
-              ? error
-                ? 'bg-error border-error'
-                : 'bg-accent border-accent scale-110 shadow-[0_0_8px_rgba(249,115,22,0.5)]'
+              ? 'bg-accent border-accent'
               : 'border-border'
           )}
-        />
+        >
+          <AnimatePresence>
+            {i < length && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                transition={{ type: 'spring', stiffness: 600, damping: 25 }}
+                className="w-full h-full bg-accent rounded-full"
+              />
+            )}
+          </AnimatePresence>
+        </div>
       ))}
     </motion.div>
   )

@@ -6,22 +6,30 @@ export interface Toast {
   id: string
   message: string
   type: ToastType
-  duration?: number
 }
 
 interface UIState {
+  language: 'fr' | 'en'
   toasts: Toast[]
-  addToast: (message: string, type: ToastType, duration?: number) => void
+  setLanguage: (lang: 'fr' | 'en') => void
+  addToast: (message: string, type: ToastType) => void
   removeToast: (id: string) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
+  language: (localStorage.getItem('nook_lang') as 'fr' | 'en') || 'fr',
   toasts: [],
-  addToast: (message, type, duration = 3000) => {
+  setLanguage: (lang) => {
+    localStorage.setItem('nook_lang', lang)
+    set({ language: lang })
+  },
+  addToast: (message, type) => {
     const id = Math.random().toString(36).substring(2, 9)
     set((state) => ({
-      toasts: [...state.toasts, { id, message, type, duration }],
+      toasts: [...state.toasts, { id, message, type }],
     }))
+
+    const duration = type === 'error' ? 5000 : type === 'warning' ? 4000 : 3000
     setTimeout(() => {
       set((state) => ({
         toasts: state.toasts.filter((t) => t.id !== id),
