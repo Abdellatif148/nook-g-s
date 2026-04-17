@@ -59,16 +59,21 @@ export default function SessionDetailPage() {
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null)
   const [receivedAmount, setReceivedAmount] = useState('')
   const [selectedClient, setSelectedClient] = useState<any>(null)
+  const [linkedClient, setLinkedClient] = useState<any>(null)
   const [clientSearch, setClientSearch] = useState('')
   const [clientResults, setClientResults] = useState<any[]>([])
+  const fetchLinkedClient = async (clientId: string) => {
+    const { data } = await supabase.from("client_accounts").select("*").eq("id", clientId).single()
+    if (data) setLinkedClient(data)
+  }
 
   const loadSession = async () => {
     const active = activeSessions.find(s => s.id === id)
     if (active) {
-      setSession(active)
+      setSession(active); if (active.client_account_id) fetchLinkedClient(active.client_account_id)
     } else {
       const { data } = await supabase.from('sessions').select('*').eq('id', id).single()
-      setSession(data)
+      setSession(data); if (data?.client_account_id) fetchLinkedClient(data.client_account_id)
     }
     setIsLoading(false)
   }
@@ -92,7 +97,7 @@ export default function SessionDetailPage() {
       setElapsed(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
       
       const rate = Number(session.rate_per_hour) || 0
-      const cost = (diffSec / 3600) * rate
+      let billableMinutes = diffSec / 60; const increment = cafe?.billing_increment || "minute"; if (increment === "15min") billableMinutes = Math.ceil(billableMinutes / 15) * 15; else if (increment === "30min") billableMinutes = Math.ceil(billableMinutes / 30) * 30; else if (increment === "hour") billableMinutes = Math.ceil(billableMinutes / 60) * 60; const cost = (billableMinutes / 60) * rate
       setTimeCost(cost)
 
       const alertLimit = Number(cafe?.long_session_alert_hours) || 3
@@ -108,6 +113,15 @@ export default function SessionDetailPage() {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
+  useEffect(() => {
+    if (!id) return
+    const channel = supabase.channel(`session-detail-${id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${id}` }, (payload) => {
+        setSession(payload.new)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [id])
   }, [session, cafe])
 
   useEffect(() => {
@@ -173,9 +187,9 @@ export default function SessionDetailPage() {
     setIsEnding(true)
 
     const now = new Date().toISOString()
-    const duration = Math.floor((Date.now() - new Date(session.started_at).getTime()) / 60000)
+    const duration = Math.max(1, Math.floor((Date.now() - new Date(session.started_at).getTime()) / 60000))
     const rate = Number(session.rate_per_hour) || 0
-    const finalTimeCost = (duration / 60) * rate
+    let billableMinutesFinal = duration; const inc = cafe?.billing_increment || "minute"; if (inc === "15min") billableMinutesFinal = Math.ceil(duration / 15) * 15; else if (inc === "30min") billableMinutesFinal = Math.ceil(duration / 30) * 30; else if (inc === "hour") billableMinutesFinal = Math.ceil(duration / 60) * 60; const finalTimeCost = (billableMinutesFinal / 60) * rate
     const extrasT = Number(session.extras_total) || 0
     const total = Number(finalTimeCost) + Number(extrasT)
 
@@ -187,8 +201,8 @@ export default function SessionDetailPage() {
         time_cost: finalTimeCost,
         payment_method: paymentMethod,
         total_amount: total,
-        amount_received: paymentMethod === 'cash' ? parseFloat(receivedAmount) : null,
-        change_given: paymentMethod === 'cash' ? parseFloat(receivedAmount) - total : null,
+        amount_received: paymentMethod === 'cash' ?  (parseFloat(receivedAmount) || 0)  : null,
+        change_given: paymentMethod === 'cash' ? ( (parseFloat(receivedAmount) || 0)  || 0) - total : null,
         client_account_id: selectedClient?.id || session.client_account_id
       }
 
@@ -297,7 +311,7 @@ export default function SessionDetailPage() {
           <div className="flex gap-4">
             <div className="flex items-center gap-1.5 text-[12px] text-text2">
               <Clock size={13} className="text-text3" />
-              <span>{session.status === 'active' ? 'Démarré à' : 'Fini à'} {format(new Date(session.status === 'active' ? session.started_at : (session.ended_at || session.started_at)), 'HH:mm')}</span>
+              <span>{session.status === 'active' ? {t('session.started_at')} : {t('session.ended_at')}} {format(new Date(session.status === 'active' ? session.started_at : (session.ended_at || session.started_at)), 'HH:mm')}</span>
             </div>
             <div className="flex items-center gap-1.5 text-[12px] text-text2">
               <Gauge size={13} className="text-text3" />
@@ -478,8 +492,8 @@ export default function SessionDetailPage() {
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-text3 font-mono">DH</span>
                 </div>
                 {receivedAmount && (
-                  <div className={`text-[13px] font-bold ${parseFloat(receivedAmount) >= totalAmount ? 'text-success' : 'text-error'}`}>
-                    → {t('session.change')}: {(parseFloat(receivedAmount) - totalAmount).toFixed(2)} DH
+                  <div className={`text-[13px] font-bold ${ (parseFloat(receivedAmount) || 0)  >= totalAmount ? 'text-success' : 'text-error'}`}>
+                    → {t('session.change')}: {(( (parseFloat(receivedAmount) || 0)  || 0) - totalAmount).toFixed(2)} DH
                   </div>
                 )}
               </motion.div>
@@ -516,15 +530,15 @@ export default function SessionDetailPage() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between bg-surface border border-border p-3 rounded-lg">
                       <div>
-                        <div className="text-sm font-bold">{selectedClient?.name || 'Client lié'}</div>
-                        {selectedClient && <div className="text-xs text-text3">Solde: {Number(selectedClient.balance).toFixed(2)} DH</div>}
+                        <div className="text-sm font-bold">{selectedClient?.name || linkedClient?.name || t('session.account')}</div>
+                        {(selectedClient || linkedClient) && <div className="text-xs text-text3">{t('clients.balance')}: {Number(selectedClient?.balance || linkedClient?.balance).toFixed(2)} DH</div>}
                       </div>
                       {!session.client_account_id && <button onClick={() => setSelectedClient(null)} className="text-text3 hover:text-error p-1"><X size={16} /></button>}
                     </div>
-                    {selectedClient && Number(selectedClient.balance) < totalAmount && (
+                    { (selectedClient || linkedClient) && Number(selectedClient?.balance || linkedClient?.balance) < totalAmount && (
                       <div className="p-3 bg-error-dim border border-[rgba(239,68,68,0.2)] rounded-lg flex items-center gap-3 text-error">
                         <AlertTriangle size={16} />
-                        <span className="text-[12px] font-bold">Solde insuffisant</span>
+                        <span className="text-[12px] font-bold">t('session.insufficient_balance')</span>
                       </div>
                     )}
                   </div>
@@ -538,7 +552,7 @@ export default function SessionDetailPage() {
           <Button
             variant="success"
             className="w-full h-[52px]"
-            disabled={!paymentMethod || (paymentMethod === 'cash' && (!receivedAmount || parseFloat(receivedAmount) < totalAmount)) || (paymentMethod === 'account' && !selectedClient && !session.client_account_id)}
+            disabled={!paymentMethod || (paymentMethod === 'cash' && (!receivedAmount ||  (parseFloat(receivedAmount) || 0)  < totalAmount)) || (paymentMethod === 'account' && !selectedClient && !session.client_account_id)}
             onClick={handleEndSession}
             isLoading={isEnding}
           >
