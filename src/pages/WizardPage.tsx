@@ -53,10 +53,23 @@ export default function WizardPage() {
   const handleFinish = async () => {
     setIsLoading(true)
     try {
-      // 1. Generate invite code (handled by DB function usually, but we'll call it)
-      const { data: codeData, error: codeError } = await supabase.rpc('generate_invite_code')
-      if (codeError) throw codeError
-      const code = codeData as string
+      // 1. Generate invite code with collision check
+      let code = ''
+      let isUnique = false
+      
+      while (!isUnique) {
+        code = Math.floor(100000 + Math.random() * 900000).toString()
+        const { data: existing } = await supabase
+          .from('cafes')
+          .select('id')
+          .eq('invite_code', code)
+          .maybeSingle()
+          
+        if (!existing) {
+          isUnique = true
+        }
+      }
+      
       setInviteCode(code)
 
       // 2. Insert Cafe

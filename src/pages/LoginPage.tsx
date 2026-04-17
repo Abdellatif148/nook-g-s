@@ -73,25 +73,56 @@ export default function LoginPage() {
     if (inviteCode.length < 6) return
     setIsLoading(true)
     try {
-      const { data: cafe, error } = await supabase
+      let { data: cafe, error } = await supabase
         .from('cafes')
         .select('*')
         .eq('invite_code', inviteCode)
-        .single()
+        .maybeSingle()
       
-      if (error || !cafe) {
+      if (error) {
+        console.error('Invite code error:', error)
+        addToast(`Erreur: ${error.message} (${error.code || '?'})`, 'error')
+        return
+      }
+
+      // Try casting to integer if not found (in case DB schema uses integer)
+      if (!cafe) {
+        const { data: cafeInt, error: intError } = await supabase
+          .from('cafes')
+          .select('*')
+          .eq('invite_code', Number(inviteCode))
+          .maybeSingle()
+          
+        if (cafeInt && !intError) {
+          cafe = cafeInt
+        }
+      }
+
+      if (!cafe) {
         addToast(t('auth.code_incorrect'), 'error')
         return
       }
 
-      const { data: staff } = await supabase
+      const { data: staff, error: staffError } = await supabase
         .from('staff')
         .select('*')
         .eq('cafe_id', cafe.id)
         .eq('active', true)
       
+      if (staffError) {
+        console.error('Staff error:', staffError)
+        addToast(`Erreur personnel: ${staffError.message}`, 'error')
+        return
+      }
+
+      if (!staff || staff.length === 0) {
+        addToast("Aucun employé actif trouvé pour ce café.", 'error')
+        return
+      }
+      
       setCafeForStaff(cafe)
-      setStaffList(staff || [])
+      setStaffList(staff)
+      setSelectedStaff(staff[0]) // Select first staff by default to prevent silent failure
       setStaffStep(2)
     } catch (error: any) {
       addToast(error.message, 'error')
@@ -110,7 +141,17 @@ export default function LoginPage() {
   }
 
   const handleStaffLogin = async (finalPin: string) => {
-    if (!selectedStaff || !cafeForStaff) return
+    if (!cafeForStaff) return
+    if (!selectedStaff) {
+      addToast("Veuillez sélectionner votre nom avant de saisir le code PIN.", 'error')
+      setPinError(true)
+      setTimeout(() => {
+        setPin('')
+        setPinError(false)
+      }, 600)
+      return
+    }
+    
     setIsLoading(true)
     try {
       const hashed = await hashPIN(finalPin)

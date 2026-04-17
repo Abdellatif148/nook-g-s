@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const { t, language } = useTranslation()
   const { setLanguage } = useLanguageStore()
   const navigate = useNavigate()
-  const { cafe, owner, logout, setCafe } = useAuthStore()
+  const { cafe, owner, type, staff, logout, setCafe } = useAuthStore()
   const addToast = useUIStore((state) => state.addToast)
   const { logAction } = useAudit()
 
@@ -31,6 +31,13 @@ export default function SettingsPage() {
   // Cafe Info Form
   const [cafeName, setCafeName] = useState(cafe?.name || '')
   const [phone, setPhone] = useState(cafe?.phone || '')
+
+  const [defaultRate, setDefaultRate] = useState<string>(cafe?.default_rate?.toString() || '')
+  const [premiumRate, setPremiumRate] = useState<string>(cafe?.premium_rate?.toString() || '')
+  const [isSavingRates, setIsSavingRates] = useState(false)
+
+  const isOwner = type === 'owner'
+  const canEditRates = isOwner || (staff?.permissions as any)?.rates
 
   const handleSaveCafe = async () => {
     if (!cafe) return
@@ -59,6 +66,39 @@ export default function SettingsPage() {
     }
   }
 
+  const handleSaveRates = async () => {
+    if (!cafe) return
+    setIsSavingRates(true)
+    try {
+      const defRate = parseFloat(defaultRate)
+      const premRate = parseFloat(premiumRate)
+      if (isNaN(defRate) || isNaN(premRate)) {
+        throw new Error("Tarifs invalides")
+      }
+
+      const { data, error } = await supabase
+        .from('cafes' as any)
+        .update({ default_rate: defRate, premium_rate: premRate })
+        .eq('id', cafe.id)
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      await logAction('cafe_updated', {
+        default_rate: defRate,
+        premium_rate: premRate
+      })
+
+      setCafe(data)
+      addToast("Tarifs mis à jour", "success")
+    } catch (error: any) {
+      addToast(error.message, 'error')
+    } finally {
+      setIsSavingRates(false)
+    }
+  }
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     logout()
@@ -73,18 +113,18 @@ export default function SettingsPage() {
         <Button onClick={handleSaveCafe} isLoading={isSaving} className="w-full">Enregistrer</Button>
       </div>
     )},
-    { id: 'rates', icon: DollarSign, title: t('settings.rates'), content: (
+    canEditRates && { id: 'rates', icon: DollarSign, title: t('settings.rates'), content: (
       <div className="space-y-4 pt-2">
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Standard (DH/h)" type="number" value={cafe?.default_rate} disabled />
-          <Input label="Premium (DH/h)" type="number" value={cafe?.premium_rate} disabled />
+          <Input label="Standard (DH/h)" type="number" step="0.5" value={defaultRate} onChange={(e) => setDefaultRate(e.target.value)} />
+          <Input label="Premium (DH/h)" type="number" step="0.5" value={premiumRate} onChange={(e) => setPremiumRate(e.target.value)} />
         </div>
-        <p className="text-[10px] text-text3 italic">Contactez le support pour modifier vos tarifs de base.</p>
+        <Button onClick={handleSaveRates} isLoading={isSavingRates} className="w-full">Enregistrer les tarifs</Button>
       </div>
     )},
     { id: 'products', icon: ShoppingBag, title: t('settings.product_catalog'), onClick: () => navigate('/settings/products') },
-    { id: 'staff', icon: Users, title: t('settings.team'), onClick: () => navigate('/settings/staff') },
-    { id: 'invite', icon: Key, title: t('settings.invite_code'), content: (
+    isOwner && { id: 'staff', icon: Users, title: t('settings.team'), onClick: () => navigate('/settings/staff') },
+    isOwner && { id: 'invite', icon: Key, title: t('settings.invite_code'), content: (
       <div className="space-y-4 pt-4">
         <div className="bg-black/25 border border-border rounded-xl p-4 flex items-center justify-center gap-4">
           <span className="text-2xl font-mono font-bold text-text tracking-[0.2em]">{cafe?.invite_code}</span>
@@ -154,7 +194,7 @@ export default function SettingsPage() {
 
         {/* Settings Sections */}
         <div className="space-y-2">
-          {sections.map((section) => (
+          {sections.filter(Boolean).map((section: any) => (
             <div key={section.id} className="bg-surface border border-border rounded-2xl overflow-hidden">
               <button
                 onClick={() => section.onClick ? section.onClick() : setExpanded(expanded === section.id ? null : section.id)}

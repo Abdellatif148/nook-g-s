@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { 
   ChevronLeft, Plus, User, Key, Timer, 
   BarChart2, Users, Settings, Trash2, Loader2, Check,
-  Search, Filter, Power
+  Search, Filter, Power, DollarSign
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
@@ -33,6 +33,7 @@ export default function StaffManagementPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [showFilters, setShowFilters] = useState(false)
   const [staffToDelete, setStaffToDelete] = useState<Staff | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
@@ -45,7 +46,8 @@ export default function StaffManagementPage() {
     sessions: true,
     reports: false,
     clients: false,
-    settings: false
+    settings: false,
+    rates: false
   })
   const [isActive, setIsActive] = useState(true)
 
@@ -91,7 +93,7 @@ export default function StaffManagementPage() {
       setShowAdd(false)
       setName('')
       setPin('')
-      setPermissions({ sessions: true, reports: false, clients: false, settings: false })
+      setPermissions({ sessions: true, reports: false, clients: false, settings: false, rates: false })
       setIsActive(true)
       loadStaff()
     } catch (error: any) {
@@ -184,7 +186,7 @@ export default function StaffManagementPage() {
       setEditingStaff(null)
       setName('')
       setPin('')
-      setPermissions({ sessions: true, reports: false, clients: false, settings: false })
+      setPermissions({ sessions: true, reports: false, clients: false, settings: false, rates: false })
       setIsActive(true)
       loadStaff()
     } catch (error: any) {
@@ -219,47 +221,69 @@ export default function StaffManagementPage() {
   return (
     <div className="min-h-screen bg-bg pb-12">
       <header className="fixed top-0 left-0 right-0 h-14 bg-bg/90 backdrop-blur-xl border-b border-border z-[100] flex items-center justify-between px-4">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-text3 hover:text-text">
-          <ChevronLeft size={20} />
-        </button>
-        <h1 className="text-sm font-bold text-text">{t('staff.title')}</h1>
-        <button onClick={() => setShowAdd(true)} className="p-2 -mr-2 text-accent hover:text-accent2">
-          <Plus size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-text3 hover:text-text">
+            <ChevronLeft size={20} />
+          </button>
+          <h1 className="text-sm font-bold text-text">{t('staff.title')}</h1>
+        </div>
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={() => {
+              const searchInput = document.getElementById('staff-search')
+              if (searchInput) {
+                if (searchInput.style.height === '0px' || !searchInput.style.height) {
+                  searchInput.style.height = '44px'
+                  searchInput.style.opacity = '1'
+                  searchInput.style.marginBottom = '16px'
+                  setTimeout(() => searchInput.querySelector('input')?.focus(), 50)
+                } else {
+                  searchInput.style.height = '0px'
+                  searchInput.style.opacity = '0'
+                  searchInput.style.marginBottom = '0px'
+                  setSearch('')
+                }
+              }
+            }}
+            className="p-2 text-text3 hover:text-text"
+          >
+            <Search size={20} />
+          </button>
+          <button 
+            onClick={() => setShowFilters(true)} 
+            className="p-2 text-text3 hover:text-text relative"
+          >
+            <Filter size={20} />
+            {statusFilter !== 'all' && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full" />
+            )}
+          </button>
+          <button onClick={() => setShowAdd(true)} className="p-2 -mr-2 text-accent hover:text-accent2">
+            <Plus size={20} />
+          </button>
+        </div>
       </header>
 
       <main className="pt-20 px-4 space-y-4">
-        <div className="space-y-3">
+        <div 
+          id="staff-search" 
+          className="overflow-hidden transition-all duration-300 ease-in-out"
+          style={{ height: 0, opacity: 0, marginBottom: 0 }}
+        >
           <Input
             placeholder={t('staff.search_placeholder')}
-            icon={<Search size={18} />}
+            icon={<Search size={16} />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {[
-              { id: 'all', label: t('common.all') },
-              { id: 'active', label: t('staff.active') },
-              { id: 'inactive', label: t('staff.inactive') },
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setStatusFilter(f.id as any)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold border transition-all ${
-                  statusFilter === f.id 
-                    ? 'bg-accent text-white border-accent' 
-                    : 'bg-surface2 text-text3 border-border'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         {filteredStaff.map((staff) => (
-          <div key={staff.id} className="bg-surface border border-border rounded-2xl p-4 flex items-center justify-between">
+          <div 
+            key={staff.id} 
+            onClick={() => openEdit(staff)}
+            className="bg-surface border border-border rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:border-accent-border transition-colors"
+          >
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-surface2 rounded-full flex items-center justify-center text-text3">
                 <User size={20} />
@@ -271,6 +295,7 @@ export default function StaffManagementPage() {
                   {(staff.permissions as any).reports && <BarChart2 size={10} className="text-info" />}
                   {(staff.permissions as any).clients && <Users size={10} className="text-success" />}
                   {(staff.permissions as any).settings && <Settings size={10} className="text-warning" />}
+                  {(staff.permissions as any).rates && <DollarSign size={10} className="text-accent2" />}
                 </div>
               </div>
             </div>
@@ -318,7 +343,7 @@ export default function StaffManagementPage() {
           setEditingStaff(null)
           setName('')
           setPin('')
-          setPermissions({ sessions: true, reports: false, clients: false, settings: false })
+          setPermissions({ sessions: true, reports: false, clients: false, settings: false, rates: false })
           setIsActive(true)
         }} 
         title={showEdit ? t('staff.edit_staff') : t('staff.add')}
@@ -331,17 +356,47 @@ export default function StaffManagementPage() {
             onChange={(e) => setName(e.target.value)}
           />
 
-          <div className="flex flex-col items-center gap-4">
-            <label className="text-xs font-bold text-text3 uppercase tracking-widest">
-              {showEdit ? t('staff.new_pin') : t('staff.pin_setup')}
-            </label>
-            <PINDots length={pin.length} />
-            <NumPad
-              onPress={(v) => pin.length < 4 && setPin(pin + v)}
-              onDelete={() => setPin(pin.slice(0, -1))}
-              className="w-full"
-            />
-          </div>
+          {showEdit && !pin && (
+            <div className="bg-surface2 p-4 rounded-xl border border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-surface rounded-full flex items-center justify-center text-text3 border border-border">
+                  <Key size={18} />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-text">Code PIN</div>
+                  <div className="text-[12px] text-text3 tracking-[0.2em] font-mono">****</div>
+                </div>
+              </div>
+              <Button variant="ghost" className="h-9 px-3 text-[11px]" onClick={() => setPin(' ')}>
+                {t('staff.change_pin')}
+              </Button>
+            </div>
+          )}
+
+          {(!showEdit || pin) && (
+            <div className="flex flex-col items-center gap-4">
+              <label className="text-xs font-bold text-text3 uppercase tracking-widest">
+                {showEdit ? t('staff.new_pin') : t('staff.pin_setup')}
+              </label>
+              <PINDots length={pin === ' ' ? 0 : pin.length} />
+              <NumPad
+                onPress={(v) => {
+                  if (pin === ' ') setPin(v);
+                  else if (pin.length < 4) setPin(pin + v);
+                }}
+                onDelete={() => {
+                  if (pin.length > 1 && pin !== ' ') setPin(pin.slice(0, -1));
+                  else setPin(' ');
+                }}
+                className="w-full"
+              />
+              {showEdit && pin && (
+                <Button variant="ghost" size="sm" onClick={() => setPin('')}>
+                  {t('common.cancel')}
+                </Button>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-text3 uppercase tracking-widest">Statut du compte</label>
@@ -377,6 +432,7 @@ export default function StaffManagementPage() {
                 { id: 'reports', icon: BarChart2, label: t('staff.perm_reports') },
                 { id: 'clients', icon: Users, label: t('staff.perm_clients') },
                 { id: 'settings', icon: Settings, label: t('staff.perm_settings') },
+                { id: 'rates', icon: DollarSign, label: t('staff.perm_rates') },
               ].map(perm => (
                 <button
                   key={perm.id}
@@ -409,7 +465,7 @@ export default function StaffManagementPage() {
             className="w-full h-14" 
             onClick={showEdit ? handleUpdateStaff : handleAddStaff}
             isLoading={isSaving}
-            disabled={!name || (!showEdit && pin.length < 4)}
+            disabled={!name || (!showEdit && pin.length < 4) || (showEdit && pin && pin !== ' ' && pin.length < 4)}
           >
             {showEdit ? t('staff.save') : t('staff.create')}
           </Button>
@@ -425,6 +481,45 @@ export default function StaffManagementPage() {
         variant="danger"
         confirmLabel={isDeleting ? t('staff.deleting') : t('staff.delete')}
       />
+
+      <BottomSheet
+        isOpen={showFilters}
+        onClose={() => setShowFilters(false)}
+        title={t('common.filters') || 'Filtres'}
+      >
+        <div className="space-y-6 pt-4">
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-text3 uppercase tracking-widest">Par statut</h3>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: 'all', label: t('common.all') },
+                { id: 'active', label: t('staff.active') },
+                { id: 'inactive', label: t('staff.inactive') },
+              ].map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => setStatusFilter(s.id as any)}
+                  className={`px-4 py-2 rounded-full text-xs font-bold border transition-all flex items-center gap-2 ${
+                    statusFilter === s.id 
+                      ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' 
+                      : 'bg-surface2 text-text3 border-border hover:border-text3'
+                  }`}
+                >
+                  {statusFilter === s.id && <Check size={14} />}
+                  {s.label}
+                 </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowFilters(false)}
+            className="w-full h-12 bg-gradient-to-br from-accent to-[#ea6b0a] text-white font-bold rounded-xl shadow-[0_2px_12px_rgba(249,115,22,0.25)] mt-4 active:scale-[0.98] transition-all"
+          >
+            {t('common.apply') || 'Appliquer'}
+          </button>
+        </div>
+      </BottomSheet>
     </div>
   )
 }

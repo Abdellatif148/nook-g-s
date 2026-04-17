@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { X, User, Phone, Armchair, Clock, Zap, Sliders, Play, Loader2, MessageSquare, ChevronDown } from 'lucide-react'
+import { X, User, Phone, Armchair, Clock, Zap, Sliders, Play, Loader2, MessageSquare, ChevronDown, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
@@ -33,6 +33,7 @@ export default function NewSessionPage() {
   const [customRate, setCustomRate] = useState<number>(0)
   const [notes, setNotes] = useState('')
   const [showNotes, setShowNotes] = useState(false)
+  const [saveAsClient, setSaveAsClient] = useState(false)
   const [recentCustomers, setRecentCustomers] = useState<string[]>([])
 
   useEffect(() => {
@@ -53,6 +54,17 @@ export default function NewSessionPage() {
     loadRecent()
   }, [cafe])
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, '')
+    if (val.length > 10) val = val.slice(0, 10)
+    
+    const parts = []
+    for (let i = 0; i < val.length; i += 2) {
+      parts.push(val.slice(i, i + 2))
+    }
+    setCustomerPhone(parts.join(' '))
+  }
+
   const handleStartSession = async () => {
     if (!cafe || !customerName || !selectedSeat) return
     
@@ -64,6 +76,32 @@ export default function NewSessionPage() {
 
     setIsLoading(true)
     try {
+      let finalClientId = clientId;
+
+      if (saveAsClient && !clientId) {
+        const { data: clientData, error: clientError } = await supabase
+          .from('client_accounts')
+          .insert({
+            cafe_id: cafe.id,
+            name: customerName,
+            phone: customerPhone || null,
+            balance: 0,
+            total_visits: 0,
+            total_spent: 0
+          })
+          .select()
+          .single()
+        
+        if (clientError) throw clientError;
+        if (clientData) {
+          finalClientId = clientData.id;
+          await logAction('client_created', {
+              client_id: finalClientId,
+              name: customerName
+          })
+        }
+      }
+
       const rate = rateType === 'standard' ? cafe.default_rate : 
                    rateType === 'premium' ? cafe.premium_rate : 
                    customRate
@@ -73,7 +111,7 @@ export default function NewSessionPage() {
         .insert({
           cafe_id: cafe.id,
           staff_id: type === 'staff' ? staff?.id : null,
-          client_account_id: clientId,
+          client_account_id: finalClientId,
           customer_name: customerName,
           customer_phone: customerPhone || null,
           seat_number: selectedSeat,
@@ -132,28 +170,66 @@ export default function NewSessionPage() {
                 )
               }
             />
-            
-            {recentCustomers.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {recentCustomers.map(name => (
-                  <button
-                    key={name}
-                    onClick={() => setCustomerName(name)}
-                    className="flex-shrink-0 px-3 py-1.5 bg-surface2 border border-border rounded-lg text-xs font-medium text-text2 hover:text-text hover:border-text3 transition-all active:scale-95"
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-            )}
 
-            <Input
-              type="tel"
-              placeholder="Téléphone (optionnel)"
-              icon={<Phone size={18} />}
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-            />
+            <div className="flex flex-col gap-3">
+              <Input
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="06 00 00 00 00"
+                icon={<Phone size={18} />}
+                value={customerPhone}
+                onChange={handlePhoneChange}
+                className="h-14 text-[19px] tracking-widest font-mono font-bold"
+                rightElement={
+                  customerPhone && (
+                    <button onClick={() => setCustomerPhone('')} className="text-text3 p-1">
+                      <X size={16} />
+                    </button>
+                  )
+                }
+              />
+              
+              {!clientId && customerName && (
+                <AnimatePresence>
+                  <motion.div
+                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                    animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <button
+                      onClick={() => setSaveAsClient(!saveAsClient)}
+                      className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all active:scale-[0.98] ${
+                        saveAsClient 
+                          ? 'bg-accent-glow border-accent' 
+                          : 'bg-surface border-border hover:border-text3'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${saveAsClient ? 'bg-accent text-white' : 'bg-surface2 text-text3'}`}>
+                          <UserPlus size={18} />
+                        </div>
+                        <div className="text-left">
+                          <div className="text-sm font-bold text-text">
+                            Nouveau compte client
+                          </div>
+                          <div className={`text-[11px] mt-0.5 ${saveAsClient ? 'text-accent2' : 'text-text3'}`}>
+                            Enregistrer pour de futures visites
+                          </div>
+                        </div>
+                      </div>
+                      <div className={`w-11 h-6 rounded-full relative transition-colors ${saveAsClient ? 'bg-accent' : 'bg-border'}`}>
+                        <motion.div 
+                          animate={{ x: saveAsClient ? 22 : 2 }}
+                          className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                        />
+                      </div>
+                    </button>
+                  </motion.div>
+                </AnimatePresence>
+              )}
+            </div>
           </div>
         </section>
 

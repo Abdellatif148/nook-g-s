@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
 
 export const useRealtime = () => {
-  const { cafe } = useAuthStore()
+  const { cafe, type, staff, setStaff, logout } = useAuthStore()
   const { setActiveSessions, addSession, updateSession, removeSession } = useSessionStore()
 
   useEffect(() => {
@@ -24,8 +24,8 @@ export const useRealtime = () => {
 
     loadSessions()
 
-    // Realtime subscription
-    const channel = supabase
+    // Realtime subscription for sessions
+    const sessionsChannel = supabase
       .channel(`sessions-cafe-${cafe.id}`)
       .on(
         'postgres_changes',
@@ -55,8 +55,55 @@ export const useRealtime = () => {
       )
       .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
+    // Realtime subscription for current staff member
+    let staffChannel: ReturnType<typeof supabase.channel> | null = null
+    
+    if (type === 'staff' && staff) {
+      staffChannel = supabase
+        .channel(`staff-${staff.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'staff',
+            filter: `id=eq.${staff.id}`,
+          },
+          (payload) => {
+            const updatedStaff = payload.new as any
+            if (updatedStaff.active === false) {
+              logout()
+            } else {
+              setStaff(updatedStaff)
+              const stored = localStorage.getItem('nook_staff_session')
+              if (stored) {
+                const parsed = JSON.parse(stored)
+                localStorage.setItem('nook_staff_session', JSON.stringify({
+                  ...parsed,
+                  permissions: updatedStaff.permissions
+                }))
+              }
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'staff',
+            filter: `id=eq.${staff.id}`,
+          },
+          () => {
+            logout()
+          }
+        )
+        .subscribe()
     }
-  }, [cafe])
+
+    return () => {
+      supabase.removeChannel(sessionsChannel)
+      if (staffChannel) supabase.removeChannel(staffChannel)
+    }
+  }, [cafe, type, staff?.id])
 }

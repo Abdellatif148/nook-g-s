@@ -24,6 +24,7 @@ import SettingsPage from './pages/SettingsPage'
 import StaffManagementPage from './pages/StaffManagementPage'
 import ProductManagementPage from './pages/ProductManagementPage'
 import AuditLogPage from './pages/AuditLogPage'
+import { PermissionGate } from './components/ui/PermissionGate'
 
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
   <motion.div
@@ -181,25 +182,33 @@ function AppRoutes() {
 
         <Route path="/clients" element={
           <AuthGuard>
-            <PageTransition><ClientsPage /></PageTransition>
+            <PermissionGate permission="clients">
+              <PageTransition><ClientsPage /></PageTransition>
+            </PermissionGate>
           </AuthGuard>
         } />
 
         <Route path="/clients/:id" element={
           <AuthGuard>
-            <PageTransition><ClientDetailPage /></PageTransition>
+            <PermissionGate permission="clients">
+              <PageTransition><ClientDetailPage /></PageTransition>
+            </PermissionGate>
           </AuthGuard>
         } />
 
         <Route path="/reports" element={
           <AuthGuard>
-            <PageTransition><ReportsPage /></PageTransition>
+            <PermissionGate permission="reports">
+              <PageTransition><ReportsPage /></PageTransition>
+            </PermissionGate>
           </AuthGuard>
         } />
 
         <Route path="/settings" element={
-          <AuthGuard requireOwner>
-            <PageTransition><SettingsPage /></PageTransition>
+          <AuthGuard>
+            <PermissionGate permission="settings">
+              <PageTransition><SettingsPage /></PageTransition>
+            </PermissionGate>
           </AuthGuard>
         } />
 
@@ -216,8 +225,10 @@ function AppRoutes() {
         } />
 
         <Route path="/settings/products" element={
-          <AuthGuard requireOwner>
-            <PageTransition><ProductManagementPage /></PageTransition>
+          <AuthGuard>
+            <PermissionGate permission="settings">
+              <PageTransition><ProductManagementPage /></PageTransition>
+            </PermissionGate>
           </AuthGuard>
         } />
 

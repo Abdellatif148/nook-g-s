@@ -88,24 +88,26 @@ export const SessionCard = ({ session, onEnd }: SessionCardProps) => {
         </motion.div>
       )}
 
-      <div className="flex items-end justify-between">
-        <div className="flex gap-6">
+      <div className="mt-4 flex items-center justify-between bg-surface2/50 border border-border/50 rounded-xl p-3">
+        <div className="flex gap-4">
           <div>
-            <div className="text-[10px] text-text3 font-medium uppercase tracking-wider mb-0.5">{t('sessions.duration')}</div>
-            <div className="text-2xl font-mono font-bold text-text leading-none">{elapsed}</div>
+            <div className="text-[9px] text-text3 font-bold uppercase tracking-widest mb-1">{t('sessions.duration')}</div>
+            <div className="text-[17px] font-mono font-bold text-text leading-none tracking-tight">{elapsed}</div>
           </div>
+          <div className="w-px bg-border/50" />
           <div>
-            <div className="text-[10px] text-text3 font-medium uppercase tracking-wider mb-0.5">{t('sessions.amount')}</div>
-            <div className="text-2xl font-mono font-bold text-accent2 leading-none">{amount.toFixed(2)} DH</div>
+            <div className="text-[9px] text-text3 font-bold uppercase tracking-widest mb-1">{t('sessions.amount')}</div>
+            <div className="text-[17px] font-mono font-bold text-accent2 leading-none tracking-tight">{amount.toFixed(2)} DH</div>
           </div>
         </div>
 
         <button
           onClick={() => onEnd(session)}
-          className="flex items-center gap-2 px-4 py-2 bg-error-dim border border-error/20 text-error rounded-lg text-sm font-semibold transition-all active:scale-95"
+          className="flex items-center justify-center w-11 h-11 shrink-0 bg-gradient-to-br from-error/10 to-error/5 border border-error/20 text-error rounded-xl transition-all hover:bg-error/20 active:scale-90 shadow-sm shadow-error/5"
+          title={t('sessions.end')}
+          aria-label={t('sessions.end')}
         >
-          {t('sessions.end')}
-          <StopCircle size={16} />
+          <StopCircle size={20} className="fill-error/20" />
         </button>
       </div>
     </motion.div>
