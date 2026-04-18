@@ -150,7 +150,7 @@ export default function NewSessionPage() {
             
             {recentCustomers.length > 0 && (
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                <span className="text-[11px] text-text3 whitespace-nowrap">{t('session.recents') || 'Récents'}:</span>
+                <span className="text-[11px] text-text3 whitespace-nowrap">{t('session.recents') }:</span>
                 {recentCustomers.map(name => (
                   <motion.button
                     key={name}
@@ -166,7 +166,7 @@ export default function NewSessionPage() {
 
             <Input
               type="tel"
-              placeholder={t('session.phone') || 'Téléphone (optionnel)'}
+              placeholder={t('session.phone') }
               icon={<Phone size={16} />}
               value={customerPhone}
               onChange={(e) => setCustomerPhone(e.target.value)}
@@ -176,7 +176,7 @@ export default function NewSessionPage() {
 
         {/* SEAT SECTION */}
         <section className="space-y-3">
-          <label className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.seat') || 'Place'}</label>
+          <label className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.seat') }</label>
           <div className="grid grid-cols-5 gap-2">
             {Array.from({ length: cafe?.total_seats || 20 }).map((_, i) => {
               const seatNum = i + 1
@@ -211,11 +211,11 @@ export default function NewSessionPage() {
 
         {/* RATE SECTION */}
         <section className="space-y-3">
-          <label className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.rate') || 'Tarif'}</label>
+          <label className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.rate') }</label>
           <div className="space-y-2">
             {[
-              { id: 'standard', icon: Clock, label: t('session.standard') || 'Standard', rate: cafe?.default_rate },
-              { id: 'premium', icon: Zap, label: t('session.premium') || 'Premium', rate: cafe?.premium_rate },
+              { id: 'standard', icon: Clock, label: t('session.standard') , rate: cafe?.default_rate },
+              { id: 'premium', icon: Zap, label: t('session.premium') , rate: cafe?.premium_rate },
             ].map(r => (
               <button
                 key={r.id}
@@ -228,7 +228,7 @@ export default function NewSessionPage() {
                   <r.icon size={18} className="text-accent" />
                   <div className="text-left">
                     <div className="text-sm font-bold text-text">{r.label}</div>
-                    <div className="text-[12px] font-mono text-text2">{r.rate?.toFixed(2)} DH / heure</div>
+                    <div className="text-[12px] font-mono text-text2">{r.rate?.toFixed(2)} DH/h</div>
                   </div>
                 </div>
                 <div className={`w-3 h-3 rounded-full border ${
@@ -246,7 +246,7 @@ export default function NewSessionPage() {
               >
                 <div className="flex items-center gap-3">
                   <SlidersHorizontal size={18} className="text-text2" />
-                  <div className="text-sm font-bold text-text">{t('session.custom') || 'Personnalisé'}</div>
+                  <div className="text-sm font-bold text-text">{t('session.custom') }</div>
                 </div>
                 <div className={`w-3 h-3 rounded-full border ${
                   rateType === 'custom' ? 'bg-accent border-accent' : 'border-text3'
@@ -265,7 +265,7 @@ export default function NewSessionPage() {
                         type="number"
                         step="0.5"
                         min="0.5"
-                        placeholder="DH/heure"
+                        placeholder={`DH/${t('wizard.step2.billing_increment') || 'h'}`}
                         value={customRate || ''}
                         onChange={(e) => setCustomRate(parseFloat(e.target.value) || 0)}
                         className="font-mono"
@@ -287,7 +287,7 @@ export default function NewSessionPage() {
           >
             <div className="flex items-center gap-2 text-text3">
               <MessageSquare size={16} />
-              <span className="text-[13px] font-medium">{t('session.note') || 'Note'}</span>
+              <span className="text-[13px] font-medium">{t('session.note') }</span>
             </div>
             <ChevronDown size={16} className={`text-text3 transition-transform ${showNotes ? 'rotate-180' : ''}`} />
           </button>
@@ -300,7 +300,7 @@ export default function NewSessionPage() {
               >
                 <textarea
                   className="input min-h-[80px] py-3 resize-none font-sans"
-                  placeholder={t('session.note_placeholder') || 'Détails de la session...'}
+                  placeholder={t('session.note_placeholder') }
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
@@ -320,7 +320,7 @@ export default function NewSessionPage() {
             >
               <div className="flex items-center gap-1.5 mb-2.5">
                 <Eye size={12} className="text-text3" />
-                <span className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.preview') || 'Aperçu'}</span>
+                <span className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.preview') }</span>
               </div>
               <div className="grid grid-cols-2 gap-y-2.5 gap-x-4">
                 <div>

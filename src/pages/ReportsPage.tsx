@@ -120,8 +120,7 @@ export default function ReportsPage() {
         >
           <div className="text-[11px] font-bold text-accent2 uppercase tracking-widest mb-1.5">{t('reports.revenue')}</div>
           <div className="flex items-baseline gap-2 mb-6">
-            <span className="text-[38px] font-mono font-extrabold text-text leading-none">{stats.revenue.toFixed(2)}</span>
-            <span className="text-xl font-mono font-bold text-text2">DH</span>
+            <span className="text-[38px] font-mono font-extrabold text-text leading-none">{stats.revenue.toFixed(2)} DH</span>
           </div>
           <div className="text-[13px] text-text2 font-medium">
             {stats.count} {t('reports.sessions')} · {stats.avgDuration}min {t('reports.avg_duration')} · {(stats.revenue / (stats.count || 1)).toFixed(2)} DH/session

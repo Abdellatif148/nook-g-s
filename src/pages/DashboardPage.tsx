@@ -150,9 +150,8 @@ export default function DashboardPage() {
           
           <div className="flex items-baseline gap-2 mb-4">
             <span className="text-[38px] font-mono font-extrabold text-text leading-none">
-              {todayStats.revenue.toFixed(2)}
+              {todayStats.revenue.toFixed(2)} DH
             </span>
-            <span className="text-xl font-mono font-bold text-text2">DH</span>
           </div>
 
           <div className="flex flex-wrap gap-2">
