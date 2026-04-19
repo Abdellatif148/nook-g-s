@@ -25,12 +25,12 @@ import {
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { useUIStore } from '../stores/uiStore'
-import { useTranslation } from '../hooks/useTranslation'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { NumPad } from '../components/ui/NumPad'
-import { PINDots } from '../components/ui/PINDots'
-import { Toggle } from '../components/ui/Toggle'
+import { useTranslation } from '../shared/hooks/useTranslation'
+import { Button } from '../shared/components/ui/Button'
+import { Input } from '../shared/components/ui/Input'
+import { NumPad } from '../shared/components/ui/NumPad'
+import { PINDots } from '../shared/components/ui/PINDots'
+import { Toggle } from '../shared/components/ui/Toggle'
 import { hashPin } from '../lib/crypto'
 
 export default function WizardPage() {

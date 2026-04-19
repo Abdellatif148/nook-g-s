@@ -7,12 +7,12 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
-import { useTranslation } from '../hooks/useTranslation'
+import { useTranslation } from '../shared/hooks/useTranslation'
 import { format, isToday, isYesterday, startOfDay, startOfWeek, startOfMonth } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { TopBar } from '../components/layout/TopBar'
-import { BottomNav } from '../components/layout/BottomNav'
-import { Input } from '../components/ui/Input'
+import { TopBar } from '../shared/components/layout/TopBar'
+import { BottomNav } from '../shared/components/layout/BottomNav'
+import { Input } from '../shared/components/ui/Input'
 
 export default function SessionHistoryPage() {
   const { t } = useTranslation()

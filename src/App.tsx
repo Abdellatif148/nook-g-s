@@ -5,7 +5,8 @@ import { supabase } from './lib/supabase'
 import { useAuthStore } from './stores/authStore'
 import { useSessionStore } from './stores/sessionStore'
 import { useUIStore } from './stores/uiStore'
-import { ToastContainer } from './components/ui/ToastContainer'
+import { ToastContainer } from './shared/components/ui/ToastContainer'
+import { OfflineBanner } from './shared/components/ui/OfflineBanner'
 import { Loader2 } from 'lucide-react'
 
 // Pages
@@ -51,7 +52,6 @@ const AuthGuard = ({ children, requireOwner = false, permission }: { children: R
   if (permission && type === 'staff') {
     const perms = staff?.permissions as any
     if (!perms?.[permission]) {
-      // We can't easily toast from here during render, but the instruction says redirect + toast
       return <Navigate to="/dashboard" replace />
     }
   }
@@ -134,6 +134,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-bg text-text selection:bg-accent/30 font-sans">
+        <OfflineBanner />
         <AppRoutes />
         <ToastContainer />
       </div>
