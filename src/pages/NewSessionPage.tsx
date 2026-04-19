@@ -1,11 +1,18 @@
 /**
- * CONFLICT RESOLVED: billing mode is now selected at session-open time
- * and stored in the session record. Cannot be changed mid-session.
+ * New session flow — 3 steps in mandatory order:
+ *   STEP 1: Billing mode selection (permanent choice, shown first)
+ *   STEP 2: Client details + seat + rate
+ *   STEP 3: Confirmation summary → start session
+ *
+ * Billing mode cannot be changed after step 1 is confirmed.
  */
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { X, User, Phone, Armchair, Clock, Zap, Sliders, Play, Loader2, MessageSquare, ChevronDown, UserPlus } from 'lucide-react'
+import {
+  X, User, Phone, Clock, Zap, Sliders, Play, Loader2,
+  MessageSquare, ChevronDown, Timer, Coffee, CheckCircle2, ChevronLeft,
+} from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUIStore } from '../stores/uiStore'
@@ -13,37 +20,44 @@ import { useTranslation } from '../i18n'
 import { useAudit } from '../hooks/useAudit'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
-import { BillingModeSelector } from '../components/sessions/BillingModeSelector'
 import { BillingMode } from '../types'
 import { startSession } from '../lib/services/sessions'
 import { createClient } from '../lib/services/clients'
 import { format } from 'date-fns'
 
+type Step = 'mode' | 'details' | 'confirm'
+
+const STEP_LABELS: Record<Step, string> = {
+  mode: 'Mode',
+  details: 'Infos',
+  confirm: 'Confirmer',
+}
+const STEPS: Step[] = ['mode', 'details', 'confirm']
+
 export default function NewSessionPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
-  const state = location.state as { clientName?: string; clientPhone?: string; clientId?: string } | null
+  const prefill = location.state as { clientName?: string; clientPhone?: string; clientId?: string } | null
 
   const { cafe, staff, type } = useAuthStore()
   const { activeSessions } = useSessionStore()
   const addToast = useUIStore((state) => state.addToast)
   const { logAction } = useAudit()
 
-  const [isLoading, setIsLoading] = useState(false)
-  const [customerName, setCustomerName] = useState(state?.clientName || '')
-  const [customerPhone, setCustomerPhone] = useState(state?.clientPhone || '')
-  const [clientId, setClientId] = useState<string | null>(state?.clientId || null)
+  const [step, setStep] = useState<Step>('mode')
+  const [billingMode, setBillingMode] = useState<BillingMode | null>(null)
+  const [modeConfirmed, setModeConfirmed] = useState(false)
+
+  const [customerName, setCustomerName] = useState(prefill?.clientName || '')
+  const [customerPhone, setCustomerPhone] = useState(prefill?.clientPhone || '')
+  const [clientId] = useState<string | null>(prefill?.clientId || null)
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null)
   const [rateType, setRateType] = useState<'standard' | 'premium' | 'custom'>('standard')
   const [customRate, setCustomRate] = useState<number>(0)
   const [notes, setNotes] = useState('')
   const [showNotes, setShowNotes] = useState(false)
-  const [saveAsClient, setSaveAsClient] = useState(false)
-  const [billingMode, setBillingMode] = useState<BillingMode>('time')
-  const [step, setStep] = useState<'details' | 'billing'>(
-    state?.clientName ? 'billing' : 'details'
-  )
+  const [isLoading, setIsLoading] = useState(false)
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.replace(/\D/g, '')
@@ -53,41 +67,29 @@ export default function NewSessionPage() {
     setCustomerPhone(parts.join(' '))
   }
 
-  const handleStartSession = async () => {
-    if (!cafe || !customerName || !selectedSeat) return
+  const effectiveRate =
+    rateType === 'standard' ? (cafe?.default_rate ?? 0)
+    : rateType === 'premium' ? (cafe?.premium_rate ?? 0)
+    : customRate
 
+  const occupiedSeats = activeSessions.map(s => s.seat_number)
+
+  const handleStartSession = async () => {
+    if (!cafe || !customerName || !selectedSeat || !billingMode) return
     if (activeSessions.some(s => s.seat_number === selectedSeat)) {
       addToast("Cette place est déjà occupée", "error")
       return
     }
-
     setIsLoading(true)
     try {
-      let finalClientId = clientId
-
-      if (saveAsClient && !clientId) {
-        const newClient = await createClient({
-          cafeId: cafe.id,
-          name: customerName,
-          phone: customerPhone || null,
-        })
-        finalClientId = newClient.id
-        await logAction('client_created', { client_id: finalClientId, name: customerName })
-      }
-
-      const rate =
-        rateType === 'standard' ? cafe.default_rate
-        : rateType === 'premium' ? cafe.premium_rate
-        : customRate
-
       await startSession({
         cafeId: cafe.id,
         staffId: type === 'staff' ? (staff?.id ?? null) : null,
-        clientAccountId: finalClientId,
+        clientAccountId: clientId,
         customerName,
         customerPhone: customerPhone || null,
         seatNumber: selectedSeat,
-        ratePerHour: rate,
+        ratePerHour: effectiveRate,
         billingMode,
         notes: notes || null,
       })
@@ -95,27 +97,35 @@ export default function NewSessionPage() {
       await logAction('session_started', {
         customer_name: customerName,
         seat_number: selectedSeat,
-        rate_per_hour: rate,
+        rate_per_hour: effectiveRate,
         billing_mode: billingMode,
       })
 
       addToast(`Session démarrée — Place ${selectedSeat}`, "success")
       navigate('/dashboard')
-    } catch (error: any) {
-      addToast(error.message, 'error')
+    } catch (err: any) {
+      addToast(err.message, 'error')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const occupiedSeats = activeSessions.map(s => s.seat_number)
-  const canProceed = !!customerName && !!selectedSeat
+  const goBack = () => {
+    const idx = STEPS.indexOf(step)
+    if (idx === 0) navigate(-1)
+    else if (step === 'confirm') setStep('details')
+    else if (step === 'details') {
+      setStep('mode')
+      setModeConfirmed(false)
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-bg pb-32">
+    <div className="min-h-screen bg-bg pb-36">
+      {/* Header */}
       <header className="fixed top-0 left-0 right-0 h-14 bg-bg/90 backdrop-blur-xl border-b border-border z-[100] flex items-center justify-between px-4">
-        <button onClick={() => (step === 'billing' ? setStep('details') : navigate(-1))} className="p-2 -ml-2 text-text3 hover:text-text">
-          <X size={20} />
+        <button onClick={goBack} aria-label="Retour" className="p-2 -ml-2 text-text3 hover:text-text">
+          {step === 'mode' ? <X size={20} /> : <ChevronLeft size={20} />}
         </button>
         <h1 className="text-sm font-bold text-text">{t('sessions.new')}</h1>
         <div className="w-8" />
@@ -124,33 +134,126 @@ export default function NewSessionPage() {
       <main className="pt-20 px-4 space-y-8">
         {/* Step indicators */}
         <div className="flex items-center gap-2">
-          {(['details', 'billing'] as const).map((s, i) => (
+          {STEPS.map((s, i) => (
             <React.Fragment key={s}>
-              <div className={`flex items-center gap-2 ${step === s ? 'text-accent' : 'text-text3'}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${step === s ? 'bg-accent border-accent text-white' : 'border-text3'}`}>
-                  {i + 1}
+              <div className={`flex items-center gap-1.5 ${step === s ? 'text-accent' : STEPS.indexOf(step) > i ? 'text-success' : 'text-text3'}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                  step === s ? 'bg-accent border-accent text-white'
+                  : STEPS.indexOf(step) > i ? 'bg-success border-success text-white'
+                  : 'border-text3 text-text3'
+                }`}>
+                  {STEPS.indexOf(step) > i ? <CheckCircle2 size={12} /> : i + 1}
                 </div>
-                <span className="text-[11px] font-bold uppercase tracking-widest">
-                  {s === 'details' ? 'Infos' : 'Facturation'}
+                <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:block">
+                  {STEP_LABELS[s]}
                 </span>
               </div>
-              {i === 0 && <div className="flex-1 h-px bg-border" />}
+              {i < STEPS.length - 1 && <div className="flex-1 h-px bg-border" />}
             </React.Fragment>
           ))}
         </div>
 
         <AnimatePresence mode="wait">
-          {step === 'details' ? (
+
+          {/* ───── STEP 1: Billing mode ───── */}
+          {step === 'mode' && (
             <motion.div
-              key="details"
+              key="mode"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div>
+                <h2 className="text-lg font-extrabold text-text mb-1">Mode de facturation</h2>
+                <p className="text-xs text-text3">Ce choix est définitif pour cette session.</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {/* Time mode */}
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setBillingMode('time')}
+                  className={`p-6 rounded-2xl border-2 text-left transition-all ${
+                    billingMode === 'time'
+                      ? 'bg-accent-glow border-accent shadow-[0_0_24px_rgba(249,115,22,0.15)]'
+                      : 'bg-surface border-border hover:border-text3'
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${billingMode === 'time' ? 'bg-accent text-white' : 'bg-surface2 text-text3'}`}>
+                      <Timer size={24} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="text-base font-extrabold text-text">⏱ TEMPS</div>
+                        {billingMode === 'time' && <CheckCircle2 size={18} className="text-accent" />}
+                      </div>
+                      <p className="text-xs text-text2 mt-1.5 leading-relaxed">
+                        Le client paie selon la durée. Les commandes sont suivies mais non facturées.
+                      </p>
+                    </div>
+                  </div>
+                </motion.button>
+
+                {/* Consumption mode */}
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setBillingMode('consumption')}
+                  className={`p-6 rounded-2xl border-2 text-left transition-all ${
+                    billingMode === 'consumption'
+                      ? 'bg-blue-500/10 border-blue-500 shadow-[0_0_24px_rgba(59,130,246,0.1)]'
+                      : 'bg-surface border-border hover:border-text3'
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${billingMode === 'consumption' ? 'bg-blue-500 text-white' : 'bg-surface2 text-text3'}`}>
+                      <Coffee size={24} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="text-base font-extrabold text-text">☕ CONSOMMATION</div>
+                        {billingMode === 'consumption' && <CheckCircle2 size={18} className="text-blue-400" />}
+                      </div>
+                      <p className="text-xs text-text2 mt-1.5 leading-relaxed">
+                        Le client paie uniquement ses commandes. Le temps est affiché mais jamais facturé.
+                      </p>
+                    </div>
+                  </div>
+                </motion.button>
+              </div>
+
+              {/* Confirmation notice */}
+              <AnimatePresence>
+                {billingMode && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`p-3 rounded-xl border text-xs font-medium ${
+                      billingMode === 'time'
+                        ? 'bg-accent-glow border-accent-border text-accent2'
+                        : 'bg-blue-500/5 border-blue-500/20 text-blue-300'
+                    }`}
+                  >
+                    Vous avez choisi : <strong>{billingMode === 'time' ? 'Temps' : 'Consommation'}</strong>. Cette sélection est définitive pour cette session.
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+          {/* ───── STEP 2: Client & table ───── */}
+          {step === 'details' && (
+            <motion.div
+              key="details"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
               className="space-y-8"
             >
-              {/* Client Section */}
+              {/* Client info */}
               <section className="space-y-4">
-                <label className="text-[10px] font-bold text-text3 uppercase tracking-widest">{t('sessions.client')}</label>
+                <label className="text-[10px] font-bold text-text3 uppercase tracking-widest">Client</label>
                 <div className="space-y-3">
                   <Input
                     placeholder="Nom du client"
@@ -159,11 +262,9 @@ export default function NewSessionPage() {
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="h-14 text-lg"
                     autoFocus
-                    rightElement={
-                      customerName && (
-                        <button onClick={() => setCustomerName('')} className="text-text3"><X size={16} /></button>
-                      )
-                    }
+                    rightElement={customerName && (
+                      <button onClick={() => setCustomerName('')} className="text-text3"><X size={16} /></button>
+                    )}
                   />
                   <Input
                     type="tel"
@@ -174,40 +275,14 @@ export default function NewSessionPage() {
                     value={customerPhone}
                     onChange={handlePhoneChange}
                     className="h-14 text-[19px] tracking-widest font-mono font-bold"
-                    rightElement={
-                      customerPhone && (
-                        <button onClick={() => setCustomerPhone('')} className="text-text3 p-1"><X size={16} /></button>
-                      )
-                    }
+                    rightElement={customerPhone && (
+                      <button onClick={() => setCustomerPhone('')} className="text-text3 p-1"><X size={16} /></button>
+                    )}
                   />
-                  {!clientId && customerName && (
-                    <AnimatePresence>
-                      <motion.button
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        onClick={() => setSaveAsClient(!saveAsClient)}
-                        className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all active:scale-[0.98] ${saveAsClient ? 'bg-accent-glow border-accent' : 'bg-surface border-border hover:border-text3'}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${saveAsClient ? 'bg-accent text-white' : 'bg-surface2 text-text3'}`}>
-                            <UserPlus size={18} />
-                          </div>
-                          <div className="text-left">
-                            <div className="text-sm font-bold text-text">Nouveau compte client</div>
-                            <div className={`text-[11px] mt-0.5 ${saveAsClient ? 'text-accent2' : 'text-text3'}`}>Enregistrer pour de futures visites</div>
-                          </div>
-                        </div>
-                        <div className={`w-11 h-6 rounded-full relative transition-colors ${saveAsClient ? 'bg-accent' : 'bg-border'}`}>
-                          <motion.div animate={{ x: saveAsClient ? 22 : 2 }} className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm" />
-                        </div>
-                      </motion.button>
-                    </AnimatePresence>
-                  )}
                 </div>
               </section>
 
-              {/* Seat Grid */}
+              {/* Seat grid */}
               <section className="space-y-4">
                 <label className="text-[10px] font-bold text-text3 uppercase tracking-widest">Sélectionner une place</label>
                 <div className="grid grid-cols-5 gap-2.5">
@@ -236,7 +311,7 @@ export default function NewSessionPage() {
                 </div>
               </section>
 
-              {/* Rate Section */}
+              {/* Rate */}
               <section className="space-y-4">
                 <label className="text-[10px] font-bold text-text3 uppercase tracking-widest">{t('sessions.rate')}</label>
                 <div className="space-y-2">
@@ -306,68 +381,101 @@ export default function NewSessionPage() {
                 </AnimatePresence>
               </section>
             </motion.div>
-          ) : (
+          )}
+
+          {/* ───── STEP 3: Confirmation ───── */}
+          {step === 'confirm' && (
             <motion.div
-              key="billing"
+              key="confirm"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               className="space-y-6"
             >
-              <div className="space-y-2">
-                <h2 className="text-[10px] font-bold text-text3 uppercase tracking-widest">{t('billing.mode_label')}</h2>
-                <p className="text-xs text-text3">{t('billing.mode_hint')}</p>
+              <div>
+                <h2 className="text-lg font-extrabold text-text mb-1">Confirmation</h2>
+                <p className="text-xs text-text3">Vérifiez les informations avant de démarrer.</p>
               </div>
-              <BillingModeSelector
-                value={billingMode}
-                onChange={setBillingMode}
-                defaultRate={
-                  rateType === 'standard' ? (cafe?.default_rate ?? 0)
-                  : rateType === 'premium' ? (cafe?.premium_rate ?? 0)
-                  : customRate
-                }
-              />
+
+              <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-border flex items-center gap-3">
+                  <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center text-accent font-bold text-lg">
+                    {customerName[0]?.toUpperCase() || '?'}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-text">{customerName}</div>
+                    {customerPhone && <div className="text-xs text-text3">{customerPhone}</div>}
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text3">Place</span>
+                    <span className="text-sm font-bold text-text">Place {selectedSeat}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text3">Tarif</span>
+                    <span className="text-sm font-bold text-accent2">{effectiveRate.toFixed(2)} DH/h</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text3">Mode de facturation</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      billingMode === 'time'
+                        ? 'bg-accent-glow text-accent2 border border-accent-border'
+                        : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                    }`}>
+                      {billingMode === 'time' ? '⏱ Temps' : '☕ Consommation'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text3">Heure de début</span>
+                    <span className="text-sm font-mono font-bold text-text">{format(new Date(), 'HH:mm')}</span>
+                  </div>
+                  {notes && (
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-xs text-text3 shrink-0">Note</span>
+                      <span className="text-xs text-text2 text-right">{notes}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </motion.div>
           )}
+
         </AnimatePresence>
       </main>
 
       {/* Bottom Action */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-linear-to-t from-bg via-bg to-transparent pt-12 z-50">
-        <AnimatePresence>
-          {canProceed && (
-            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="mb-4 p-4 bg-surface2 border border-accent-border rounded-xl flex items-center justify-between">
-              <div>
-                <div className="text-[10px] text-text3 font-bold uppercase tracking-widest mb-1">Aperçu</div>
-                <div className="text-sm font-bold text-text">{customerName} — Place {selectedSeat}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs font-bold text-accent2">
-                  {rateType === 'standard' ? cafe?.default_rate : rateType === 'premium' ? cafe?.premium_rate : customRate} DH/h
-                </div>
-                <div className="text-[10px] text-text3">Début: {format(new Date(), 'HH:mm')}</div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {step === 'details' ? (
+        {step === 'mode' && (
           <Button
-            onClick={() => setStep('billing')}
+            onClick={() => { setModeConfirmed(true); setStep('details') }}
             className="w-full h-14 text-lg"
-            disabled={!canProceed}
+            disabled={!billingMode}
           >
-            Choisir le mode de facturation →
+            Continuer →
           </Button>
-        ) : (
+        )}
+
+        {step === 'details' && (
+          <Button
+            onClick={() => setStep('confirm')}
+            className="w-full h-14 text-lg"
+            disabled={!customerName || !selectedSeat}
+          >
+            Vérifier et confirmer →
+          </Button>
+        )}
+
+        {step === 'confirm' && (
           <Button
             onClick={handleStartSession}
             className="w-full h-14 text-lg"
-            disabled={!canProceed}
+            disabled={!customerName || !selectedSeat || !billingMode}
             isLoading={isLoading}
           >
             <Play size={20} className="fill-current" />
-            {t('sessions.start')}
+            Démarrer la session
           </Button>
         )}
       </div>

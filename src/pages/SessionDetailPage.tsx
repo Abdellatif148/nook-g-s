@@ -12,15 +12,16 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   ChevronLeft, MoreVertical, Clock, Gauge, AlertCircle,
-  ShoppingBag, Plus, StopCircle, Edit2, Trash2, CheckCircle,
-  Banknote, CreditCard, Wallet, Gift, Loader2, Phone, Timer
+  ShoppingBag, Plus, StopCircle, Trash2, CheckCircle,
+  Banknote, CreditCard, Wallet, Gift, Loader2, Phone, Timer,
+  MessageCircle, Printer, Download, SkipForward
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useUIStore } from '../stores/uiStore'
 import { useTranslation } from '../i18n'
 import { useAudit } from '../hooks/useAudit'
 import { Button } from '../components/ui/Button'
-import { Session, Product } from '../types'
+import { Session, Product, BillingMode } from '../types'
 import { BottomSheet } from '../components/ui/BottomSheet'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { getSession, endSession, cancelSession, addExtrasToSession, removeExtraFromSession } from '../lib/services/sessions'
@@ -71,6 +72,8 @@ export default function SessionDetailPage() {
   const [selectedExtras, setSelectedExtras] = useState<Record<string, number>>({})
   const [itemToRemove, setItemToRemove] = useState<number | null>(null)
   const [isEnding, setIsEnding] = useState(false)
+  const [showReceipt, setShowReceipt] = useState(false)
+  const [closedSession, setClosedSession] = useState<{ name: string; phone: string | null; total: number; duration: string; seat: number; mode: BillingMode } | null>(null)
 
   // Load session and products in parallel
   useEffect(() => {
@@ -180,12 +183,38 @@ export default function SessionDetailPage() {
       })
 
       addToast(`Session clôturée — ${totalAmount.toFixed(2)} DH`, "success")
-      navigate('/dashboard')
+      setShowEnd(false)
+      setClosedSession({
+        name: session.customer_name,
+        phone: session.customer_phone ?? null,
+        total: totalAmount,
+        duration: elapsed,
+        seat: session.seat_number,
+        mode: session.billing_mode as BillingMode,
+      })
+      setShowReceipt(true)
     } catch (err: any) {
       addToast(err.message, 'error')
     } finally {
       setIsEnding(false)
     }
+  }
+
+  /** Format a plain-text WhatsApp receipt message. */
+  function buildWhatsAppMessage(data: NonNullable<typeof closedSession>): string {
+    const lines = [
+      `*${cafe?.name ?? 'Nook OS'}* — Reçu`,
+      `Date : ${format(new Date(), 'dd/MM/yyyy HH:mm')}`,
+      `Client : ${data.name}`,
+      `Place : ${data.seat}`,
+      data.mode === 'time'
+        ? `Durée : ${data.duration}`
+        : `Consommations`,
+      `*Total : ${data.total.toFixed(2)} DH*`,
+      '',
+      'Merci pour votre visite ! 🙏',
+    ]
+    return lines.join('\n')
   }
 
   const handleCancelSession = async () => {
@@ -502,6 +531,67 @@ export default function SessionDetailPage() {
         message="Cette action est irréversible. La session sera marquée comme annulée."
         variant="danger"
       />
+
+      {/* Receipt options sheet — shown after checkout */}
+      <BottomSheet
+        isOpen={showReceipt}
+        onClose={() => { setShowReceipt(false); navigate('/dashboard') }}
+        title="Reçu & options d'envoi"
+      >
+        {closedSession && (
+          <div className="space-y-6 pt-4">
+            {/* Summary */}
+            <div className="p-4 bg-surface2 border border-border rounded-xl space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text3">{closedSession.name} — Place {closedSession.seat}</span>
+                <span className="text-text3">{closedSession.duration}</span>
+              </div>
+              <div className="flex justify-between items-baseline">
+                <span className="font-bold text-text">Total</span>
+                <span className="text-xl font-mono font-extrabold text-accent2">{closedSession.total.toFixed(2)} DH</span>
+              </div>
+            </div>
+
+            {/* WhatsApp */}
+            {closedSession.phone ? (
+              <button
+                onClick={() => {
+                  const msg = buildWhatsAppMessage(closedSession)
+                  const phone = closedSession.phone!.replace(/\D/g, '')
+                  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+                }}
+                className="w-full h-14 flex items-center justify-center gap-3 rounded-xl bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] font-bold hover:bg-[#25D366]/20 transition-colors"
+              >
+                <MessageCircle size={20} />
+                Envoyer via WhatsApp
+              </button>
+            ) : (
+              <div className="w-full h-14 flex items-center justify-center gap-3 rounded-xl bg-surface2 border border-border text-text3 text-sm">
+                <MessageCircle size={20} />
+                Numéro non disponible
+              </div>
+            )}
+
+            {/* Print */}
+            <button
+              onClick={() => window.print()}
+              className="w-full h-14 flex items-center justify-center gap-3 rounded-xl bg-surface2 border border-border text-text font-bold hover:border-accent hover:text-accent transition-colors"
+            >
+              <Printer size={20} />
+              Imprimer / PDF
+            </button>
+
+            {/* Skip */}
+            <button
+              onClick={() => { setShowReceipt(false); navigate('/dashboard') }}
+              className="w-full h-12 flex items-center justify-center gap-2 text-text3 hover:text-text2 text-sm transition-colors"
+            >
+              <SkipForward size={16} />
+              Passer
+            </button>
+          </div>
+        )}
+      </BottomSheet>
     </div>
   )
 }
