@@ -2,13 +2,37 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Nook OS</title>
+    <!-- Preconnect to external origins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <style>
+      :root { --bg: #080b12; }
+      body { background-color: var(--bg); margin: 0; }
+      #initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--bg);
+        z-index: 9999;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      .loader-logo { width: 64px; height: 64px; margin-bottom: 24px; }
+      .loader-text { color: #f1f5f9; font-size: 24px; font-weight: 700; margin: 0; }
+    </style>
   </head>
-  <body style="background:#080b12;margin:0">
-    <div id="root"></div>
+  <body>
+    <div id="root">
+      <div id="initial-loader">
+        <img src="/favicon.svg" class="loader-logo" alt="Nook OS">
+        <h1 class="loader-text">Nook OS</h1>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
