@@ -38,7 +38,7 @@ export default defineConfig(({mode}) => {
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
-    resolve: {
+    resolve: { // resolve alias
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
@@ -48,27 +48,17 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks: {
             'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-            'vendor-ui': ['lucide-react', 'motion'],
-            'vendor-db': ['@supabase/supabase-js', 'dexie'],
-            'vendor-charts': ['recharts'],
-            'vendor-utils': ['date-fns', 'jspdf', 'jspdf-autotable']
+            'vendor-ui': ['lucide-react', 'motion/react'],
+            'vendor-db': ['@supabase/supabase-js', 'zustand'],
+            'vendor-utils': ['date-fns']
           }
         }
-      },
-      chunkSizeWarningLimit: 1000
+      }
     },
     server: {
-      host: '0.0.0.0',
-      port: 5000,
-      allowedHosts: true,
+      // HMR is disabled in AI Studio via DISABLE_HMR env var.
+      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      watch: {
-        ignored: [
-          '**/.local/**',
-          '**/node_modules/**',
-          '**/.git/**',
-        ],
-      },
     },
   };
 });

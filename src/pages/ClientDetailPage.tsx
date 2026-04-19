@@ -1,7 +1,3 @@
-/**
- * SCALABILITY: All Supabase queries now go through the service layer.
- * CONFLICT RESOLVED: all three data queries run in parallel via Promise.all.
- */
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
@@ -10,14 +6,12 @@ import {
   PlusCircle, BarChart, TrendingUp, Calendar, 
   Clock, Banknote, Wallet, Loader2, Play, Trash2, Edit2
 } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { useUIStore } from '../stores/uiStore'
 import { useTranslation } from '../i18n'
 import { useAudit } from '../hooks/useAudit'
 import { ClientAccount, Session, BalanceTransaction } from '../types'
-import { getClient, updateClientBalance, recordClientVisit } from '../lib/services/clients'
-import { getClientTransactions, rechargeClientAccount } from '../lib/services/transactions'
-import { getSessionsByClient } from '../lib/services/sessions'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -38,6 +32,7 @@ export default function ClientDetailPage() {
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'visits' | 'transactions'>('visits')
+  const [sessionsSortOrder, setSessionsSortOrder] = useState<'desc' | 'asc'>('desc')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   
   const [showRecharge, setShowRecharge] = useState(false)
@@ -45,26 +40,36 @@ export default function ClientDetailPage() {
   const [rechargeRef, setRechargeRef] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
-  // CONFLICT RESOLVED: all three queries now run in parallel via Promise.all
   const loadData = async () => {
     if (!id) return
     setIsLoading(true)
-    try {
-      const [clientData, transData, sessionData] = await Promise.all([
-        getClient(id),
-        getClientTransactions(id),
-        getSessionsByClient(id),
-      ])
-
+    
+    const { data: clientData } = await supabase
+      .from('client_accounts')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    if (clientData) {
       setClient(clientData)
-      setTransactions(transData)
-      setSessions(sessionData)
-    } catch (err: any) {
-      addToast(err.message, 'error')
-      navigate(-1)
-    } finally {
-      setIsLoading(false)
+      
+      const { data: sessionData } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('client_account_id', id)
+        .order('created_at', { ascending: false })
+      
+      if (sessionData) setSessions(sessionData)
+
+      const { data: transData } = await supabase
+        .from('balance_transactions')
+        .select('*')
+        .eq('client_id', id)
+        .order('created_at', { ascending: false })
+      
+      if (transData) setTransactions(transData)
     }
+    setIsLoading(false)
   }
 
   useEffect(() => {
@@ -75,29 +80,41 @@ export default function ClientDetailPage() {
     if (!client || !rechargeAmount || !cafe) return
     setIsSaving(true)
     try {
-      const safeAmount = Math.max(0, Math.round(rechargeAmount * 100) / 100)
+      const newBalance = client.balance + rechargeAmount
+      
+      // 1. Update client balance
+      const { error: clientError } = await supabase
+        .from('client_accounts' as any)
+        .update({ balance: newBalance })
+        .eq('id', client.id)
+      
+      if (clientError) throw clientError
 
-      // Record the credit transaction + update balance atomically via service
-      const tx = await rechargeClientAccount({
-        cafeId: cafe.id,
-        clientId: client.id,
-        staffId: type === 'staff' ? (staff?.id ?? null) : null,
-        amount: safeAmount,
-        balanceBefore: client.balance,
-        reference: rechargeRef || 'Recharge manuelle',
-      })
-
-      await updateClientBalance(client.id, tx.balance_after)
+      // 2. Insert transaction
+      const { error: transError } = await supabase
+        .from('balance_transactions' as any)
+        .insert({
+          cafe_id: cafe.id,
+          client_id: client.id,
+          staff_id: type === 'staff' ? staff?.id : null,
+          type: 'credit',
+          amount: rechargeAmount,
+          balance_before: client.balance,
+          balance_after: newBalance,
+          description: rechargeRef || 'Recharge manuelle'
+        })
+      
+      if (transError) throw transError
 
       await logAction('client_recharged', {
         client_id: client.id,
         client_name: client.name,
-        amount: safeAmount,
-        new_balance: tx.balance_after,
-        reference: rechargeRef || 'Recharge manuelle',
+        amount: rechargeAmount,
+        new_balance: newBalance,
+        reference: rechargeRef || 'Recharge manuelle'
       })
 
-      addToast(`Compte rechargé de ${safeAmount.toFixed(2)} DH`, "success")
+      addToast(`Compte rechargé de ${rechargeAmount.toFixed(2)} DH`, "success")
       setShowRecharge(false)
       setRechargeAmount(0)
       setRechargeRef('')
@@ -249,25 +266,37 @@ export default function ClientDetailPage() {
 
         {/* History Tabs */}
         <div className="space-y-4">
-          <div className="flex gap-4 border-b border-border">
-            <button 
-              onClick={() => setActiveTab('visits')}
-              className={`pb-2 text-sm font-bold transition-all relative ${
-                activeTab === 'visits' ? 'text-accent' : 'text-text3'
-              }`}
-            >
-              Visites
-              {activeTab === 'visits' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent" />}
-            </button>
-            <button 
-              onClick={() => setActiveTab('transactions')}
-              className={`pb-2 text-sm font-bold transition-all relative ${
-                activeTab === 'transactions' ? 'text-accent' : 'text-text3'
-              }`}
-            >
-              Transactions
-              {activeTab === 'transactions' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent" />}
-            </button>
+          <div className="flex items-center justify-between border-b border-border">
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setActiveTab('visits')}
+                className={`pb-2 text-sm font-bold transition-all relative ${
+                  activeTab === 'visits' ? 'text-accent' : 'text-text3'
+                }`}
+              >
+                Visites
+                {activeTab === 'visits' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent" />}
+              </button>
+              <button 
+                onClick={() => setActiveTab('transactions')}
+                className={`pb-2 text-sm font-bold transition-all relative ${
+                  activeTab === 'transactions' ? 'text-accent' : 'text-text3'
+                }`}
+              >
+                Transactions
+                {activeTab === 'transactions' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent" />}
+              </button>
+            </div>
+            
+            {activeTab === 'visits' && sessions.length > 0 && (
+              <button
+                onClick={() => setSessionsSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                className="flex items-center gap-1.5 pb-2 text-xs font-bold text-text3 hover:text-text transition-colors"
+              >
+                Trier par date
+                <ChevronLeft size={14} className={`transition-transform rotate-[-90deg] ${sessionsSortOrder === 'asc' ? 'rotate-[90deg]' : ''}`} />
+              </button>
+            )}
           </div>
 
           <AnimatePresence mode="wait">
@@ -279,7 +308,11 @@ export default function ClientDetailPage() {
                 exit={{ opacity: 0, x: 10 }}
                 className="bg-surface border border-border rounded-2xl overflow-hidden divide-y divide-border"
               >
-                {sessions.map((session) => (
+                {[...sessions].sort((a, b) => {
+                  const dateA = new Date(a.started_at).getTime()
+                  const dateB = new Date(b.started_at).getTime()
+                  return sessionsSortOrder === 'desc' ? dateB - dateA : dateA - dateB
+                }).map((session) => (
                   <div key={session.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-surface2 flex items-center justify-center text-text3">

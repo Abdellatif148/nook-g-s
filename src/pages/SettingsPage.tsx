@@ -2,10 +2,9 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { 
-  Store, DollarSign, ShoppingBag, Users, 
-  Key, Globe, LogOut, ChevronDown, 
-  ChevronRight, Copy, Check, BarChart2,
-  Building2, User, Phone, Pencil, Save
+  Store, DollarSign, Bell, ShoppingBag, Users, 
+  Key, Globe, User, LogOut, ChevronDown, 
+  ChevronRight, Copy, RefreshCw, Check, Activity
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
@@ -29,12 +28,9 @@ export default function SettingsPage() {
   const [showLogout, setShowLogout] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Venue identity
+  // Cafe Info Form
   const [cafeName, setCafeName] = useState(cafe?.name || '')
   const [phone, setPhone] = useState(cafe?.phone || '')
-  const [ownerName, setOwnerName] = useState(owner?.user_metadata?.full_name || '')
-  const [identityEditing, setIdentityEditing] = useState(false)
-  const [isSavingIdentity, setIsSavingIdentity] = useState(false)
 
   const [defaultRate, setDefaultRate] = useState<string>(cafe?.default_rate?.toString() || '')
   const [premiumRate, setPremiumRate] = useState<string>(cafe?.premium_rate?.toString() || '')
@@ -42,36 +38,6 @@ export default function SettingsPage() {
 
   const isOwner = type === 'owner'
   const canEditRates = isOwner || (staff?.permissions as any)?.rates
-  const hasPermission = (perm: 'reports' | 'clients' | 'settings') => {
-    if (isOwner) return true
-    if (!staff?.permissions) return false
-    return !!(staff.permissions as any)[perm]
-  }
-
-  const handleSaveIdentity = async () => {
-    if (!cafe) return
-    setIsSavingIdentity(true)
-    try {
-      const [cafeRes, userRes] = await Promise.all([
-        supabase.from('cafes' as any)
-          .update({ name: cafeName, phone })
-          .eq('id', cafe.id)
-          .select()
-          .single(),
-        supabase.auth.updateUser({ data: { full_name: ownerName } }),
-      ])
-      if (cafeRes.error) throw cafeRes.error
-      if (userRes.error) throw userRes.error
-      setCafe(cafeRes.data)
-      await logAction('cafe_updated', { name: cafeName, phone, owner_name: ownerName })
-      addToast("Informations mises à jour", "success")
-      setIdentityEditing(false)
-    } catch (err: any) {
-      addToast(err.message, 'error')
-    } finally {
-      setIsSavingIdentity(false)
-    }
-  }
 
   const handleSaveCafe = async () => {
     if (!cafe) return
@@ -156,7 +122,6 @@ export default function SettingsPage() {
         <Button onClick={handleSaveRates} isLoading={isSavingRates} className="w-full">Enregistrer les tarifs</Button>
       </div>
     )},
-    hasPermission('reports') && { id: 'reports', icon: BarChart2, title: t('dashboard.reports'), onClick: () => navigate('/reports') },
     { id: 'products', icon: ShoppingBag, title: t('settings.product_catalog'), onClick: () => navigate('/settings/products') },
     isOwner && { id: 'staff', icon: Users, title: t('settings.team'), onClick: () => navigate('/settings/staff') },
     isOwner && { id: 'invite', icon: Key, title: t('settings.invite_code'), content: (
@@ -216,92 +181,15 @@ export default function SettingsPage() {
       </header>
 
       <main className="pt-20 px-4 space-y-4">
-        {/* Venue Identity Block */}
-        <div className="bg-surface border border-border rounded-2xl overflow-hidden mb-6">
-          {/* Logo + Venue Name header */}
-          <div className="p-4 flex items-center justify-between border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shrink-0">
-                <span className="text-white font-extrabold text-sm tracking-tight">N</span>
-              </div>
-              <div>
-                <div className="text-[10px] font-bold text-text3 uppercase tracking-widest">Nook OS</div>
-                <div className="text-sm font-extrabold text-text leading-tight">{cafeName || 'Mon café'}</div>
-              </div>
-            </div>
-            {isOwner && (
-              <button
-                onClick={() => setIdentityEditing(!identityEditing)}
-                className={`p-2 rounded-lg transition-colors ${identityEditing ? 'bg-accent text-white' : 'text-text3 hover:text-text hover:bg-surface2'}`}
-              >
-                <Pencil size={16} />
-              </button>
-            )}
+        {/* User Profile */}
+        <div className="bg-surface border border-border rounded-2xl p-4 flex items-center gap-4 mb-6">
+          <div className="w-12 h-12 bg-accent rounded-full flex items-center justify-center text-white font-bold text-lg">
+            {owner?.user_metadata?.full_name?.[0] || 'O'}
           </div>
-
-          {/* Identity fields — read-only or editable */}
-          <AnimatePresence>
-            {identityEditing ? (
-              <motion.div
-                key="editing"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="p-4 space-y-3"
-              >
-                <Input
-                  label="Nom du café"
-                  icon={<Building2 size={16} />}
-                  value={cafeName}
-                  onChange={(e) => setCafeName(e.target.value)}
-                />
-                <Input
-                  label="Propriétaire"
-                  icon={<User size={16} />}
-                  value={ownerName}
-                  onChange={(e) => setOwnerName(e.target.value)}
-                />
-                <Input
-                  label="Téléphone"
-                  icon={<Phone size={16} />}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  type="tel"
-                />
-                <Button
-                  onClick={handleSaveIdentity}
-                  isLoading={isSavingIdentity}
-                  className="w-full"
-                >
-                  <Save size={16} />
-                  Enregistrer
-                </Button>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="readonly"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="divide-y divide-border"
-              >
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <User size={14} className="text-text3 shrink-0" />
-                  <div>
-                    <div className="text-[10px] text-text3">Propriétaire</div>
-                    <div className="text-sm font-semibold text-text">{ownerName || owner?.email}</div>
-                  </div>
-                </div>
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <Phone size={14} className="text-text3 shrink-0" />
-                  <div>
-                    <div className="text-[10px] text-text3">Téléphone</div>
-                    <div className="text-sm font-semibold text-text">{phone || '—'}</div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div>
+            <div className="text-sm font-bold text-text">{owner?.user_metadata?.full_name}</div>
+            <div className="text-xs text-text3">{owner?.email}</div>
+          </div>
         </div>
 
         {/* Settings Sections */}

@@ -1,4 +1,3 @@
-// ─── Scalar types ────────────────────────────────────────────────────────────
 export type Json =
   | string
   | number
@@ -7,16 +6,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-/** The two billing modes available when opening a session. */
-export type BillingMode = 'time' | 'consumption'
-
-// ─── Database schema ─────────────────────────────────────────────────────────
 export interface Database {
   public: {
-    Views: Record<string, never>
-    Functions: Record<string, never>
-    Enums: Record<string, never>
-    CompositeTypes: Record<string, never>
     Tables: {
       cafes: {
         Row: {
@@ -121,10 +112,8 @@ export interface Database {
           customer_phone: string | null
           seat_number: number
           rate_per_hour: number
-          /** ISO timestamp — always server-generated, never client time */
           started_at: string
           ended_at: string | null
-          /** Whole-number minutes only — no floating point */
           duration_minutes: number | null
           time_cost: number | null
           extras: Json
@@ -136,8 +125,6 @@ export interface Database {
           client_account_id: string | null
           status: string
           notes: string | null
-          /** Determines what gets billed at checkout */
-          billing_mode: BillingMode
           created_at: string
           updated_at: string
         }
@@ -162,7 +149,6 @@ export interface Database {
           client_account_id?: string | null
           status?: string
           notes?: string | null
-          billing_mode?: BillingMode
           created_at?: string
           updated_at?: string
         }
@@ -187,38 +173,8 @@ export interface Database {
           client_account_id?: string | null
           status?: string
           notes?: string | null
-          billing_mode?: BillingMode
           created_at?: string
           updated_at?: string
-        }
-      }
-      session_consumptions: {
-        Row: {
-          id: string
-          session_id: string
-          product_id: string
-          quantity: number
-          unit_price: number
-          product_name: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          session_id: string
-          product_id: string
-          quantity: number
-          unit_price: number
-          product_name: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          session_id?: string
-          product_id?: string
-          quantity?: number
-          unit_price?: number
-          product_name?: string
-          created_at?: string
         }
       }
       client_accounts: {
@@ -303,10 +259,6 @@ export interface Database {
           balance_before: number
           balance_after: number
           description: string | null
-          /** 'time' | 'consumption' | null for non-session transactions */
-          billing_mode: BillingMode | null
-          /** JSONB breakdown of what was billed */
-          breakdown: Json | null
           created_at: string
         }
         Insert: {
@@ -320,8 +272,6 @@ export interface Database {
           balance_before: number
           balance_after: number
           description?: string | null
-          billing_mode?: BillingMode | null
-          breakdown?: Json | null
           created_at?: string
         }
         Update: {
@@ -335,8 +285,6 @@ export interface Database {
           balance_before?: number
           balance_after?: number
           description?: string | null
-          billing_mode?: BillingMode | null
-          breakdown?: Json | null
           created_at?: string
         }
       }
@@ -373,46 +321,17 @@ export interface Database {
   }
 }
 
-// ─── Convenience row aliases ──────────────────────────────────────────────────
 export type Cafe = Database['public']['Tables']['cafes']['Row']
 export type Staff = Database['public']['Tables']['staff']['Row']
 export type Session = Database['public']['Tables']['sessions']['Row']
-export type SessionConsumption = Database['public']['Tables']['session_consumptions']['Row']
 export type ClientAccount = Database['public']['Tables']['client_accounts']['Row']
 export type Product = Database['public']['Tables']['products']['Row']
 export type BalanceTransaction = Database['public']['Tables']['balance_transactions']['Row']
 export type AuditLog = Database['public']['Tables']['audit_log']['Row']
 
-// ─── Domain types ─────────────────────────────────────────────────────────────
 export interface StaffPermissions {
   sessions: boolean
   reports: boolean
   clients: boolean
   settings: boolean
-  rates?: boolean
-}
-
-/** Breakdown stored in balance_transactions.breakdown */
-export interface TimeBillingBreakdown {
-  mode: 'time'
-  duration_minutes: number
-  rate_per_hour: number
-  time_cost: number
-  consumptions: ConsumptionLineItem[]
-}
-
-export interface ConsumptionBillingBreakdown {
-  mode: 'consumption'
-  consumptions: ConsumptionLineItem[]
-  time_tracked_minutes: number
-}
-
-export type BillingBreakdown = TimeBillingBreakdown | ConsumptionBillingBreakdown
-
-export interface ConsumptionLineItem {
-  product_id: string
-  name: string
-  quantity: number
-  unit_price: number
-  line_total: number
 }

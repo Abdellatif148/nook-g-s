@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { 
@@ -15,7 +15,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useUIStore } from '../stores/uiStore'
 import { useRealtime } from '../hooks/useRealtime'
 import { useTranslation } from '../i18n'
-import { getCompletedSessions } from '../lib/services/sessions'
+import { supabase } from '../lib/supabase'
 import { Session } from '../types'
 import { format } from 'date-fns'
 
@@ -31,42 +31,36 @@ export default function DashboardPage() {
 
   useRealtime()
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const loadStats = useCallback(async () => {
+  const loadStats = async () => {
     if (!cafe) return
     setIsRefreshing(true)
-    try {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const sessions = await getCompletedSessions(cafe.id, today, 100)
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const { data: sessions } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('cafe_id', cafe.id)
+      .eq('status', 'completed')
+      .gte('ended_at', today.toISOString())
+      .order('ended_at', { ascending: false }) as any
+    
+    if (sessions) {
       const revenue = sessions.reduce((acc, s) => acc + s.total_amount, 0)
       setTodayStats({
         revenue,
         total: sessions.length + activeSessions.length,
-        completed: sessions.length,
+        completed: sessions.length
       })
       setLastSessions(sessions.slice(0, 5))
-    } catch {
-      // Non-fatal — stats refresh is best-effort
-    } finally {
-      setIsRefreshing(false)
     }
-  }, [cafe, activeSessions.length])
+    setIsRefreshing(false)
+  }
 
   useEffect(() => {
     loadStats()
-  }, [cafe])
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      loadStats()
-    }, 800)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [activeSessions.length])
+  }, [cafe, activeSessions.length])
 
   const hasPermission = (perm: 'reports' | 'clients') => {
     if (type === 'owner') return true

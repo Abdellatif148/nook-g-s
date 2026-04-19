@@ -182,7 +182,7 @@ function FeatureCard({ icon, title, desc, delay }: { icon: React.ReactNode, titl
         {icon}
       </div>
       <div>
-        <h3 className="text-lg font-bold text-text mb-1">{title}</h3>
+        <h2 className="text-lg font-bold text-text mb-1">{title}</h2>
         <p className="text-sm text-text2 leading-snug">{desc}</p>
       </div>
     </motion.div>
