@@ -1,0 +1,419 @@
+You are a senior full-stack engineer performing a complete audit, refactor, and feature build on Nook OS — a Progressive Web App (PWA) for café management built with React + TypeScript (frontend) and Supabase (backend/database). Your work covers seven areas listed below. Read the full specification before writing a single line of code.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PRODUCT CONTEXT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nook OS is a café management platform. The current scope is:
+- Café staff/owners manage the venue through a dashboard PWA installed on a tablet or phone
+- Customers walk in and are managed as client accounts (no self-service app, no QR codes)
+- No student-specific features exist — they were removed entirely
+- Core Supabase tables: sessions, session_consumptions, products, client_accounts, balance_transactions, spaces, staff_accounts, memberships, loyalty_points
+
+There is NO student module. Do not reference, restore, or suggest anything student-related.
+There are NO QR code features. Do not add them.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PRIORITY ORDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Build and fix in this order:
+1. OFFLINE MODE + CRASH-RESILIENT BILLING ENGINE (most critical — café wifi is unreliable)
+2. Dual billing mode session flow
+3. Error fixing & logic conflicts
+4. Scalability refactor
+5. UI/UX improvements (navigation, settings, staff management, receipts)
+6. Code quality
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 1 — OFFLINE MODE (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Offline mode is the most important feature in this build. The app must work fully even when the internet drops, the router restarts, or the device loses connectivity mid-session. This is non-negotiable for a café environment.
+
+## 1A — Architecture
+
+Use IndexedDB via Dexie.js (already approved) as the local database. Every write to Supabase must go through a smart write helper that decides the path based on connectivity.
+
+File structure to create:
+  /lib/offline/db.ts         — Dexie schema: sessions, consumptions, products, clients, outbox
+  /lib/offline/queue.ts      — Outbox: enqueue, dequeue, retry logic
+  /lib/offline/sync.ts       — Sync runner: processes outbox when connectivity returns
+  /lib/offline/writeHelper.ts — Smart write: online → Supabase directly; offline → IndexedDB + outbox
+  /shared/hooks/useConnectivity.ts — { isOnline, lastSyncAt, syncStatus }
+
+## 1B — IndexedDB Schema (Dexie)
+
+Define these stores:
+  sessions:             id, client_id, venue_id, billing_mode, start_time, end_time, status, final_amount, rate, rate_unit, synced, created_at
+  session_consumptions: id, session_id, product_id, name, quantity, unit_price, synced, created_at
+  products:             id, venue_id, name, price, category, cached_at
+  clients:              id, venue_id, name, phone, cached_at
+  outbox:               id (autoincrement), action, payload (JSON), status ('pending'|'failed'), retries, created_at, last_attempt
+
+## 1C — Connectivity Detection
+
+Do NOT rely solely on navigator.onLine — it lies. Use a two-layer check:
+  Layer 1: listen to window 'online' and 'offline' events
+  Layer 2: every 30 seconds, ping Supabase with a lightweight query (SELECT 1 FROM spaces LIMIT 1)
+  If the ping fails but navigator.onLine is true → treat as offline
+  If both agree online → confirm online
+
+Expose via useConnectivity():
+  { isOnline: boolean, lastSyncAt: Date | null, syncStatus: 'idle' | 'syncing' | 'error' }
+
+Show a persistent banner at the top of every page when offline:
+  "Hors ligne — Les données seront synchronisées dès le retour de la connexion"
+  Include a spinner when syncing and a checkmark when last sync succeeded.
+
+## 1D — Outbox Queue
+
+Every offline write (open session, add consumption, close session) is added to the outbox:
+  {
+    action: 'open_session' | 'add_consumption' | 'close_session',
+    payload: ,
+    status: 'pending',
+    retries: 0,
+    created_at: ISO timestamp
+  }
+
+Processing rules:
+  - Process in FIFO order (by created_at ascending)
+  - On success: delete the outbox entry, update the local record as synced: true
+  - On failure: increment retries. After 3 failures: set status = 'failed', show an alert to admin
+  - Never process a later action for a session if an earlier action for that session is still pending (dependency ordering)
+  - Wrap the entire sync run in a try/catch — one failed item must not block the rest
+
+## 1E — Conflict Resolution
+
+When syncing a session that was opened offline:
+  - Before inserting, check if client_id already has an open session in Supabase
+  - If yes: do NOT auto-resolve. Create a conflict entry and show it to the admin in a "Conflits à résoudre" screen
+  - Admin can choose: keep local session, discard local session, or merge (keep both as separate sessions)
+  - After resolution: remove conflict entry and continue sync
+
+## 1F — What Works Offline
+
+These actions must work fully offline (no degraded mode):
+  - Open a new session (time or consumption mode)
+  - View all currently open sessions (from IndexedDB cache)
+  - Add consumptions to a session
+  - Close / checkout a session (calculate locally, queue sync)
+  - View the product list (from cache)
+
+These actions require connectivity and must show a clear "Non disponible hors ligne" message:
+  - Create a new client account
+  - View historical transactions and reports
+  - Change venue settings
+  - Staff management
+
+## 1G — Data Freshness
+
+When the app comes online:
+  1. Run the outbox sync (upload pending writes)
+  2. Refresh local caches: pull latest products, clients, open sessions from Supabase
+  3. Update lastSyncAt timestamp
+  4. Show a toast: "Synchronisation réussie — X éléments mis à jour"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 2 — CRASH-RESILIENT BILLING ENGINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 2A — Core Principle: Server Start Time, Always
+
+The billing engine MUST NOT calculate duration as (current_time - in_memory_start_time). That approach fails on app crash, phone shutdown, browser tab close, or refresh.
+
+The correct approach:
+  - When a session is opened, write start_time to BOTH IndexedDB AND Supabase immediately
+  - start_time is always a server-generated ISO timestamp (use Supabase's NOW() via RPC or insert with server_now())
+  - Never use new Date() on the client as the authoritative start_time — only use it as a fallback if the server write has not yet confirmed (offline case)
+  - If offline: use new Date().toISOString() as a provisional start_time and store it locally. Mark the session as provisional_start: true. When synced, replace with the server timestamp.
+  - Every time the app loads or the session list is rendered, compute duration from: now - session.start_time (pulled from DB/local cache), not from any in-memory counter
+
+## 2B — Timer Display
+
+The UI timer is a display-only counter. It does NOT drive billing calculations:
+  - On mount: read start_time from the session object (from DB/cache)
+  - Display: elapsed = Math.floor((Date.now() - new Date(start_time).getTime()) / 1000)
+  - Tick every second with setInterval
+  - On unmount: clear the interval
+  - If the component remounts (navigation, crash recovery, refresh): the timer picks back up from the real start_time — no drift, no reset
+
+This means a session that started 2 hours ago will show 2:00:xx correctly even if the app was closed for 1:55 of those 2 hours.
+
+## 2C — Duration & Amount Calculation
+
+At checkout, calculate the final amount using ONLY persisted timestamps:
+  - Pull start_time and end_time from the session record (DB or local cache)
+  - duration_seconds = Math.max(0, Math.floor((new Date(end_time) - new Date(start_time)) / 1000))
+  - duration_minutes = duration_seconds / 60
+  - billed_units = duration_minutes / rate_unit_minutes    // e.g. rate_unit = 30 → per 30 min
+  - amount = Math.max(0, Math.round(billed_units * rate * 100) / 100)   // rounded to 2 decimals, never negative
+
+Flag any existing calculation that uses client-side Date() for start_time as: // BILLING BUG — replaced with persisted timestamp
+
+## 2D — Edge Cases (all must be handled)
+
+  - Session under 1 minute: bill minimum 1 unit (configurable per venue)
+  - Session over 8 hours: bill normally, but flag in the breakdown as "session longue — vérifier"
+  - Session crossing midnight: duration calculation is still correct because it uses ISO timestamps
+  - App crash mid-session: on reopen, session is still in local DB with its original start_time — timer resumes correctly
+  - Phone shutdown mid-session: same as above — start_time persisted in IndexedDB survives shutdown
+  - Paused sessions: if pause is supported, store pause_start and pause_end timestamps in the session record. Deduct total paused duration from billing: effective_duration = total_duration - paused_duration. Never calculate pause gaps from memory.
+  - Negative duration (clock skew): clamp to 0, log a warning // BILLING BUG if detected
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 3 — DUAL BILLING MODE SESSION FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 3A — Session Open Flow (step order is mandatory)
+
+The new session flow is a multi-step modal/sheet. Steps must appear in this exact order:
+
+STEP 1 — BILLING MODE SELECTION (shown first, before anything else)
+  - Display two large, clearly labeled options with icons and a short explanation each:
+
+    [⏱ TEMPS]                          [☕ CONSOMMATION]
+    Le client paie selon la durée.      Le client paie uniquement ses
+    Les commandes sont suivies          commandes. Le temps est affiché
+    mais non facturées.                 mais jamais facturé.
+
+  - The choice is permanent. Once selected and confirmed it CANNOT be changed.
+  - Visually distinguish the two modes (green accent for time, amber for consumption)
+  - Add a confirmation: "Vous avez choisi : [Mode]. Cette sélection est définitive pour cette session."
+
+STEP 2 — CLIENT & TABLE (only appears after billing mode is chosen)
+  - Search/select existing client or create a new one (if online)
+  - Enter table / seat / location (text field)
+
+STEP 3 — CONFIRMATION
+  - Summary card showing: client name, table, billing mode badge
+  - "Démarrer la session" button
+
+On confirm:
+  - Write session to IndexedDB + Supabase (or outbox if offline)
+  - start_time = server timestamp (or provisional client timestamp if offline)
+  - billing_mode stored immediately
+
+## 3B — Time Billing Mode Behavior
+
+During session:
+  - Show live timer (driven by start_time from DB, not memory)
+  - Show running cost: (elapsed_minutes / rate_unit) × rate
+  - Show any consumptions added with a label: "Suivi interne — non facturé"
+  - Do NOT show a consumption subtotal that could be confused with the bill
+
+At checkout:
+  - Final amount = time cost only (calculated from persisted timestamps)
+  - Receipt shows: client, table, start time, end time, duration, rate, total
+  - Consumption list shown separately under "Détail des commandes (non facturées)"
+  - balance_transactions.amount = time cost
+  - balance_transactions.breakdown = { billing_mode: 'time', duration_minutes, rate, consumptions: [...] }
+
+## 3C — Consumption Billing Mode Behavior
+
+During session:
+  - Show live timer with label "Temps (non facturé)"
+  - Staff adds products via a product picker bottom sheet
+  - Running total = sum of all added products (this IS the bill)
+  - Show itemized list of added products in real time
+
+At checkout:
+  - Staff reviews the itemized consumption list
+  - Can edit quantities or remove items before finalizing
+  - Final amount = sum of consumptions ONLY
+  - Time cost is NEVER calculated, shown, or stored as a billable amount
+  - balance_transactions.amount = consumption total
+  - balance_transactions.breakdown = { billing_mode: 'consumption', items: [...], duration_minutes (informational only) }
+
+## 3D — Receipt / Invoice Options (consumption mode and time mode)
+
+After a session is closed, the staff must be presented with these options before the modal closes:
+
+  [📥 Télécharger PDF]    — Generate a PDF receipt/invoice and download it
+  [📱 Envoyer via WhatsApp] — Open whatsapp://send?phone=CLIENT_PHONE&text=RECEIPT_TEXT (deep link)
+                              Receipt text must be pre-formatted in plain text (not HTML)
+                              Include: café name, date, client name, items or duration, total, "Merci pour votre visite!"
+  [🖨 Imprimer]           — Call window.print() with a print-specific CSS that shows only the receipt
+                              Only show this button if window.matchMedia('print') is supported and a printer might be connected
+  [Passer]                — Skip all of the above and close the session normally
+
+WhatsApp deep link format:
+  whatsapp://send?phone=PHONE_NUMBER&text=MESSAGE
+  Where PHONE_NUMBER is the client's stored phone number (with country code, e.g. 212XXXXXXXXX)
+  If the client has no phone number on file, show "Numéro non disponible" and disable the WhatsApp button
+  Use encodeURIComponent() on the message text
+
+PDF generation: use the browser's built-in print-to-PDF via window.print() with a dedicated @media print stylesheet. No external PDF library needed.
+
+## 3E — Database Changes Required
+
+  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS billing_mode TEXT NOT NULL DEFAULT 'consumption' CHECK (billing_mode IN ('time', 'consumption'));
+  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS rate NUMERIC(10,2);
+  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS rate_unit INTEGER;  -- minutes per billing unit
+
+  CREATE TABLE IF NOT EXISTS session_consumptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id),
+    name TEXT NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    unit_price NUMERIC(10,2) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  ALTER TABLE balance_transactions ADD COLUMN IF NOT EXISTS billing_mode TEXT CHECK (billing_mode IN ('time', 'consumption'));
+  ALTER TABLE balance_transactions ADD COLUMN IF NOT EXISTS breakdown JSONB;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 4 — ERROR FIXING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Go through every file and fix:
+  - All TypeScript/JavaScript type errors, undefined references, broken imports
+  - All broken Supabase queries (wrong table names, missing .select(), unhandled errors)
+  - All React errors (missing list keys, invalid hook order, undefined state access)
+  - All async/await issues and unhandled promise rejections
+  - All environment variable references (must use VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+  - Dead code referencing removed features (student app, QR codes, student tables)
+  - Any billing calculations using client-side Date() as authoritative start_time (mark // BILLING BUG)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 5 — LOGIC CONFLICT RESOLUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Identify and resolve:
+  - Duplicate state (same data fetched in multiple places)
+  - Inconsistent data flow (prop drilling vs context vs store mixed randomly)
+  - Auth logic conflicts (session checks done multiple ways)
+  - Role/permission checks that are inconsistent or duplicated
+  - Balance transaction sign conflicts (credits vs debits)
+  - Race conditions in async data fetching
+  - Conflicting route guards
+
+Add a comment at the top of each affected file describing the conflict and the resolution.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 6 — SCALABILITY REFACTOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## Folder Structure
+
+  /features
+    /auth          — components/, hooks/, types.ts, api.ts
+    /sessions      — components/, hooks/, types.ts, api.ts
+    /billing       — components/, hooks/, types.ts (billing engine lives here)
+    /clients       — components/, hooks/, types.ts, api.ts
+    /products      — components/, hooks/, types.ts, api.ts
+    /transactions  — components/, hooks/, types.ts, api.ts
+    /staff         — components/, hooks/, types.ts, api.ts
+    /reports       — components/, hooks/, types.ts, api.ts
+    /settings      — components/, hooks/, types.ts, api.ts
+  /shared
+    /components    — reusable UI components
+    /hooks         — useConnectivity, useToast, etc.
+    /utils         — formatting, date helpers, billing math
+    /constants     — all hardcoded strings extracted here
+  /lib
+    /supabase      — client, typed query helpers
+    /offline       — db.ts, queue.ts, sync.ts, writeHelper.ts
+    /config        — env vars, venue config
+
+## Supabase Layer
+  - All queries go through /features/[domain]/api.ts service functions
+  - No raw Supabase calls inside components
+  - Every query handles loading, error, and empty states
+  - All queries compatible with RLS (filter by venue_id)
+  - Use React Query for server state, React Context for global app state
+
+## Components
+  - No component over 200 lines
+  - No hardcoded strings (use /shared/constants)
+  - All UI components receive data via typed props — no self-fetching
+  - Only page-level containers fetch data
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 7 — UI/UX IMPROVEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 7A — Back Navigation
+
+Add a back button (←) to every page that is not a root tab:
+  - Sessions detail page
+  - Client detail page
+  - Product detail page
+  - Transaction detail page
+  - Any sub-page inside Reports
+  - Staff detail page
+  - Any settings sub-page
+
+The back button must:
+  - Use the router's navigate(-1) — not a hardcoded path
+  - Be placed at the top-left of the page header, before the page title
+  - Be accessible: aria-label="Retour"
+  - On the Reports page specifically: always show a back button to return to the dashboard
+
+## 7B — Settings Page Header
+
+At the very top of the Settings page, replace any generic header or avatar placeholder with a structured venue identity block:
+
+  [Nook OS logo SVG]
+  [Café Name]           — editable field, pulled from venue record
+  [Owner Name]          — editable field
+  [Café Phone Number]   — editable field, used as default for WhatsApp sends
+
+  - These fields are editable inline with a save button
+  - Remove any circular avatar placeholder — it is not used in this product
+  - Below this block, continue with the existing settings sections
+
+## 7C — Staff Management — Send Credentials via WhatsApp
+
+In the staff management section, when viewing or creating a staff member, add a "Partager les accès" action that:
+  - Constructs a WhatsApp message in French containing:
+      Nom: [staff name]
+      Identifiant: [staff login / code]
+      PIN: [staff PIN]
+      Application: [app URL or store link]
+      "Bienvenue dans l'équipe Nook !"
+  - Opens: whatsapp://send?phone=STAFF_PHONE&text=MESSAGE
+  - The staff member's phone number must be stored in the staff record (add the field if missing)
+  - If no phone number is stored: show "Ajouter un numéro de téléphone pour partager les accès"
+  - This button is only visible to the venue owner/admin role — not to regular staff
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 8 — CODE QUALITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Add TypeScript types for all Supabase table rows (generate from schema or write manually)
+  - Naming: camelCase for variables/functions, PascalCase for components, snake_case for DB columns
+  - Remove all console.log except intentional debug lines (mark // DEBUG)
+  - JSDoc comment on every exported function
+  - Extract all magic numbers into named constants (e.g. MAX_SESSION_HOURS = 8, MIN_BILLING_MINUTES = 1)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONSTRAINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Do not add features beyond what is described
+  - Do not introduce new third-party libraries without flagging first (Dexie.js is pre-approved)
+  - Keep Supabase-first architecture
+  - No QR codes, no student module, no customer self-service portal
+  - Preserve all existing data models — only modify schemas if required by Tasks 2–3
+  - HARD RULE: Consumption billing amount must NEVER include time cost in any calculation, display, or database record
+  - HARD RULE: Time billing start_time must ALWAYS come from a persisted record (DB or IndexedDB), never from JavaScript runtime memory
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After completing all tasks, provide:
+  1. Errors found and fixed (grouped by type)
+  2. Logic conflicts resolved (per file)
+  3. Scalability changes made (folder moves, refactors)
+  4. Billing engine bugs found and fixed
+  5. Offline architecture summary (files created, sync strategy, crash recovery)
+  6. Dual billing mode implementation (DB changes, step flow, receipt options)
+  7. UI/UX changes made (back buttons, settings header, staff WhatsApp)
+  8. Flagged decisions requiring human input (ambiguous logic, schema migrations, library suggestions)
+
+Start by reading the full file tree. Then tackle in priority order: offline → billing engine → session flow → errors → refactor → UI → quality.
