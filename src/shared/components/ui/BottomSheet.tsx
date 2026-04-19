@@ -42,7 +42,7 @@ export const BottomSheet = ({ isOpen, onClose, title, children }: BottomSheetPro
             <div className="sticky top-0 bg-surface z-10 px-4 pt-3 pb-2">
               <div className="w-8 h-1 bg-border2 rounded-full mx-auto mb-4" />
               <div className="flex items-center justify-between">
-                {title && <h3 className="text-lg font-bold text-text">{title}</h3>}
+                {title && <h2 className="text-lg font-bold text-text">{title}</h2>}
                 <button
                   onClick={onClose}
                   className="p-2 text-text3 hover:text-text transition-colors"

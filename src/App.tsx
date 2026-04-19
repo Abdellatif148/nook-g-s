@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { supabase } from './lib/supabase'
@@ -10,18 +10,18 @@ import { OfflineBanner } from './shared/components/ui/OfflineBanner'
 import { Loader2 } from 'lucide-react'
 
 // Pages
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
-import WizardPage from './pages/WizardPage'
-import DashboardPage from './pages/DashboardPage'
-import NewSessionPage from './pages/NewSessionPage'
-import SessionDetailPage from './pages/SessionDetailPage'
-import SessionHistoryPage from './pages/SessionHistoryPage'
-import ClientsPage from './pages/ClientsPage'
-import ClientDetailPage from './pages/ClientDetailPage'
-import ReportsPage from './pages/ReportsPage'
-import SettingsPage from './pages/SettingsPage'
-import StaffManagementPage from './pages/StaffManagementPage'
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+const WizardPage = lazy(() => import('./pages/WizardPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const NewSessionPage = lazy(() => import('./pages/NewSessionPage'))
+const SessionDetailPage = lazy(() => import('./pages/SessionDetailPage'))
+const SessionHistoryPage = lazy(() => import('./pages/SessionHistoryPage'))
+const ClientsPage = lazy(() => import('./pages/ClientsPage'))
+const ClientDetailPage = lazy(() => import('./pages/ClientDetailPage'))
+const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const StaffManagementPage = lazy(() => import('./pages/StaffManagementPage'))
 
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
   <motion.div
@@ -110,8 +110,17 @@ function AppRoutes() {
   }
 
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-11 h-11 bg-accent rounded-full flex items-center justify-center text-white font-extrabold text-[22px]">N</div>
+          <span className="text-xl font-bold text-text">Nook OS</span>
+        </div>
+        <Loader2 className="animate-spin text-text3" size={20} />
+      </div>
+    }>
+      <AnimatePresence mode="wait">
+        <Routes location={location}>
         <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
         <Route path="/register" element={<PageTransition><RegisterPage /></PageTransition>} />
         <Route path="/wizard" element={<AuthGuard requireOwner><PageTransition><WizardPage /></PageTransition></AuthGuard>} />
@@ -127,6 +136,7 @@ function AppRoutes() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AnimatePresence>
+    </Suspense>
   )
 }
 

@@ -40,7 +40,7 @@ export const ConfirmDialog = ({
               exit={{ opacity: 0, scale: 0.9 }}
               className="bg-surface border border-border rounded-2xl p-6 w-full max-w-[320px] shadow-2xl pointer-events-auto"
             >
-              <h3 className="text-lg font-bold text-text mb-2">{title}</h3>
+              <h2 className="text-lg font-bold text-text mb-2">{title}</h2>
               <p className="text-sm text-text2 mb-6 leading-relaxed">{message}</p>
               <div className="flex flex-col gap-2">
                 <Button
