@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import { 
   BarChart2, TrendingUp, Users, Clock, 
-  Download, Banknote, CreditCard, Wallet, Gift,
+  Banknote, CreditCard, Wallet, Gift,
   Calendar, ChevronDown, Loader2, Activity
 } from 'lucide-react'
 import { 
@@ -16,7 +16,6 @@ import { Session } from '../types'
 import { TopBar } from '../components/layout/TopBar'
 import { BottomNav } from '../components/layout/BottomNav'
 import { Button } from '../components/ui/Button'
-import { generateReportPDF } from '../lib/pdf'
 import { format, startOfDay, subDays, subMonths } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -91,18 +90,10 @@ export default function ReportsPage() {
     return acc
   }, [])
 
-  const handleExport = () => {
-    if (!cafe) return
-    generateReportPDF(cafe, sessions, period === 'today' ? "Aujourd'hui" : period === 'week' ? "7 derniers jours" : "30 derniers jours")
-  }
-
   return (
     <div className="min-h-screen bg-bg pb-24">
       <header className="fixed top-0 left-0 right-0 h-14 bg-bg/90 backdrop-blur-xl border-b border-border z-[100] flex items-center justify-between px-4">
         <h1 className="text-sm font-bold text-text">{t('reports.title')}</h1>
-        <button onClick={handleExport} className="p-2 -mr-2 text-accent hover:text-accent2 transition-colors">
-          <Download size={20} />
-        </button>
       </header>
 
       <main className="pt-20 px-4 space-y-6">

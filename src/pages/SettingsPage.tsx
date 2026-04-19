@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { 
   Store, DollarSign, Bell, ShoppingBag, Users, 
   Key, Globe, User, LogOut, ChevronDown, 
-  ChevronRight, Copy, RefreshCw, Check, Activity
+  ChevronRight, Copy, RefreshCw, Check, BarChart2
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
@@ -105,6 +105,8 @@ export default function SettingsPage() {
     navigate('/login')
   }
 
+  const hasReportsPermission = isOwner || (staff?.permissions as any)?.reports
+
   const sections = [
     { id: 'cafe', icon: Store, title: t('settings.my_cafe'), content: (
       <div className="space-y-4 pt-2">
@@ -113,6 +115,7 @@ export default function SettingsPage() {
         <Button onClick={handleSaveCafe} isLoading={isSaving} className="w-full">Enregistrer</Button>
       </div>
     )},
+    hasReportsPermission && { id: 'reports', icon: BarChart2, title: t('dashboard.reports'), onClick: () => navigate('/reports') },
     canEditRates && { id: 'rates', icon: DollarSign, title: t('settings.rates'), content: (
       <div className="space-y-4 pt-2">
         <div className="grid grid-cols-2 gap-4">

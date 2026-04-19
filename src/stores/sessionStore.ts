@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { Session } from '../types'
 
 interface SessionState {
@@ -9,19 +10,26 @@ interface SessionState {
   removeSession: (sessionId: string) => void
 }
 
-export const useSessionStore = create<SessionState>((set) => ({
-  activeSessions: [],
-  setActiveSessions: (sessions) => set({ activeSessions: sessions }),
-  addSession: (session) =>
-    set((state) => ({ activeSessions: [session, ...state.activeSessions] })),
-  updateSession: (session) =>
-    set((state) => ({
-      activeSessions: state.activeSessions.map((s) =>
-        s.id === session.id ? session : s
-      ),
-    })),
-  removeSession: (sessionId) =>
-    set((state) => ({
-      activeSessions: state.activeSessions.filter((s) => s.id !== sessionId),
-    })),
-}))
+export const useSessionStore = create<SessionState>()(
+  persist(
+    (set) => ({
+      activeSessions: [],
+      setActiveSessions: (sessions) => set({ activeSessions: sessions }),
+      addSession: (session) =>
+        set((state) => ({ activeSessions: [session, ...state.activeSessions] })),
+      updateSession: (session) =>
+        set((state) => ({
+          activeSessions: state.activeSessions.map((s) =>
+            s.id === session.id ? session : s
+          ),
+        })),
+      removeSession: (sessionId) =>
+        set((state) => ({
+          activeSessions: state.activeSessions.filter((s) => s.id !== sessionId),
+        })),
+    }),
+    {
+      name: 'nook-session-storage',
+    }
+  )
+)

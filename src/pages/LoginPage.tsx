@@ -17,11 +17,17 @@ export default function LoginPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
-  const { setOwner, setStaff, setCafe } = useAuthStore()
+  const { type, isLoading: authLoading, setOwner, setStaff, setCafe } = useAuthStore()
   const addToast = useUIStore((state) => state.addToast)
 
   const [role, setRole] = useState<'owner' | 'staff'>((location.state as any)?.defaultRole || 'owner')
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading && type) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [type, authLoading, navigate])
 
   // Owner form
   const [email, setEmail] = useState('')

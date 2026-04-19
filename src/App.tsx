@@ -76,14 +76,20 @@ const AuthGuard = ({ children, requireOwner = false }: { children: React.ReactNo
 
 function AppRoutes() {
   const location = useLocation()
-  const { setOwner, setCafe, setLoading, setStaff } = useAuthStore()
+  const { setOwner, setCafe, setLoading, setStaff, logout } = useAuthStore()
 
   useEffect(() => {
     const initAuth = async () => {
       setLoading(true)
       
-      // 1. Check Supabase Auth (Owner)
-      const { data: { session } } = await supabase.auth.getSession()
+      let session = null;
+      try {
+        // 1. Check Supabase Auth (Owner)
+        const { data } = await supabase.auth.getSession()
+        session = data.session;
+      } catch (e) {
+        console.warn("Failed to get session online, checking cached state", e);
+      }
       
       // Add minimum loading time for the splash screen effect
       const minLoadTime = new Promise(resolve => setTimeout(resolve, 2000))
@@ -102,6 +108,10 @@ function AppRoutes() {
               setCafe(cafe)
             } else if (error && (error.message.includes('Failed to fetch') || !navigator.onLine)) {
               // Offline fallback, user is cached in store
+            } else if (error && error.code !== 'PGRST116') {
+               // Other error
+            } else if (!cafe && navigator.onLine) {
+               // No cafe found online, user might have deleted it but it's okay, maybe wizard 
             }
           } else {
             // 2. Check Local Storage (Staff)
@@ -124,12 +134,20 @@ function AppRoutes() {
                 if (staff && cafe) {
                   setStaff(staff)
                   setCafe(cafe)
-                } else if ((staffError || cafeError) && (!navigator.onLine || staffError?.message.includes('fetch'))) {
-                  // Keep whatever is cached in the auth store
+                } else if ((staffError || cafeError) && (!navigator.onLine || staffError?.message?.includes('fetch') || cafeError?.message?.includes('fetch'))) {
+                  // Keep whatever is cached in the auth store offline
+                } else {
+                  // Online but staff or cafe deleted/not found
+                  localStorage.removeItem('nook_staff_session')
+                  if (navigator.onLine) logout()
                 }
               } else {
                 localStorage.removeItem('nook_staff_session')
+                if (navigator.onLine) logout()
               }
+            } else {
+              // No sessions active, so make sure store is clear
+              if (navigator.onLine) logout()
             }
           }
         } catch (e) {

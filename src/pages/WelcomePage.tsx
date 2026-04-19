@@ -1,14 +1,25 @@
-import React from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useEffect } from 'react'
+import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { useTranslation } from '../i18n'
-import { useLanguageStore } from '../i18n'
+import { useTranslation, useLanguageStore } from '../i18n'
 import { Globe, ArrowRight, CheckCircle2, BarChart3, Users, Zap } from 'lucide-react'
+import { useAuthStore } from '../stores/authStore'
 
 export default function WelcomePage() {
   const { t } = useTranslation()
   const { language, setLanguage } = useLanguageStore()
   const navigate = useNavigate()
+  const { type, isLoading, cafe } = useAuthStore()
+
+  useEffect(() => {
+    if (!isLoading && type) {
+      if (type === 'owner' && !cafe?.setup_complete) {
+        navigate('/wizard', { replace: true })
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
+    }
+  }, [type, isLoading, cafe, navigate])
 
   const toggleLanguage = () => {
     const nextLang = language === 'fr' ? 'en' : 'fr'

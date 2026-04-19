@@ -284,12 +284,14 @@ export default function WizardPage() {
             )}
 
             <div className="flex flex-col gap-3">
-              <Button onClick={handleFinish} className="w-full" isLoading={isLoading}>
-                {t('common.next')}
+              <Button onClick={() => { setAddStaff(false); handleFinish(); }} className="w-full" isLoading={isLoading}>
+                {addStaff ? t('common.next') : t('common.next')}
               </Button>
-              <button onClick={() => setStep(4)} className="text-sm text-text3 hover:text-text transition-colors">
-                Ignorer cette étape
-              </button>
+              {addStaff && (
+                <button onClick={() => { setAddStaff(false); handleFinish(); }} className="text-sm text-text3 hover:text-text transition-colors">
+                  Ignorer cette étape
+                </button>
+              )}
             </div>
           </motion.div>
         )

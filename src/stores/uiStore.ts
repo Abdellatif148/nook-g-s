@@ -26,6 +26,9 @@ export const useUIStore = create<UIState>((set) => ({
   },
   toasts: [],
   addToast: (message, type, duration = 3000) => {
+    if (typeof message === 'string' && (message.includes('Failed to fetch') || message.includes('failed to fetch'))) {
+      return; 
+    }
     const id = Math.random().toString(36).substring(2, 9)
     set((state) => ({
       toasts: [...state.toasts, { id, message, type, duration }],

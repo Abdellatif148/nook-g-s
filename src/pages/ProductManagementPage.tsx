@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { 
   ChevronLeft, Plus, ShoppingBag, Trash2, 
   Loader2, Check, Search, Tag, DollarSign,
-  Coffee, Pizza, MoreHorizontal, Power
+  Coffee, Pizza, MoreHorizontal, Power, Edit2
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
@@ -27,6 +27,7 @@ export default function ProductManagementPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
@@ -54,35 +55,73 @@ export default function ProductManagementPage() {
     loadProducts()
   }, [cafe])
 
-  const handleAddProduct = async () => {
+  const openAdd = () => {
+    setName('')
+    setPrice(0)
+    setCategory('boisson')
+    setActive(true)
+    setEditingProduct(null)
+    setShowAdd(true)
+  }
+
+  const openEdit = (product: Product) => {
+    setName(product.name)
+    setPrice(product.price)
+    setCategory(product.category)
+    setActive(product.active)
+    setEditingProduct(product)
+    setShowAdd(true)
+  }
+
+  const handleSaveProduct = async () => {
     if (!cafe || !name || price < 0) return
     setIsSaving(true)
     try {
-      const { error } = await supabase
-        .from('products' as any)
-        .insert({
-          cafe_id: cafe.id,
-          name,
+      if (editingProduct) {
+        const { error } = await supabase
+          .from('products' as any)
+          .update({
+            name,
+            price,
+            category,
+            active
+          })
+          .eq('id', editingProduct.id)
+        
+        if (error) throw error
+        
+        await logAction('product_updated', {
+          product_id: editingProduct.id,
+          product_name: name,
           price,
-          category,
-          active,
-          sort_order: products.length
+          category
         })
-      
-      if (error) throw error
-      
-      await logAction('product_added', {
-        product_name: name,
-        price,
-        category
-      })
 
-      addToast(t('settings.product_added'), "success")
+        addToast(t('settings.product_updated') || "Produit modifié", "success")
+      } else {
+        const { error } = await supabase
+          .from('products' as any)
+          .insert({
+            cafe_id: cafe.id,
+            name,
+            price,
+            category,
+            active,
+            sort_order: products.length
+          })
+        
+        if (error) throw error
+        
+        await logAction('product_added', {
+          product_name: name,
+          price,
+          category
+        })
+
+        addToast(t('settings.product_added'), "success")
+      }
+
       setShowAdd(false)
-      setName('')
-      setPrice(0)
-      setCategory('boisson')
-      setActive(true)
       loadProducts()
     } catch (error: any) {
       addToast(error.message, 'error')
@@ -156,7 +195,7 @@ export default function ProductManagementPage() {
           <ChevronLeft size={20} />
         </button>
         <h1 className="text-sm font-bold text-text">{t('settings.product_catalog')}</h1>
-        <button onClick={() => setShowAdd(true)} className="p-2 -mr-2 text-accent hover:text-accent2">
+        <button onClick={openAdd} className="p-2 -mr-2 text-accent hover:text-accent2">
           <Plus size={20} />
         </button>
       </header>
@@ -207,6 +246,12 @@ export default function ProductManagementPage() {
               
               <div className="flex items-center gap-2">
                 <button 
+                  onClick={() => openEdit(product)}
+                  className={`p-2 rounded-lg transition-colors text-text3 hover:bg-surface2`}
+                >
+                  <Edit2 size={18} />
+                </button>
+                <button 
                   onClick={() => toggleProductActive(product)}
                   className={`p-2 rounded-lg transition-colors ${product.active ? 'text-success hover:bg-success/10' : 'text-text3 hover:bg-surface2'}`}
                   title={product.active ? "Désactiver" : "Activer"}
@@ -232,7 +277,7 @@ export default function ProductManagementPage() {
         </div>
       </main>
 
-      <BottomSheet isOpen={showAdd} onClose={() => setShowAdd(false)} title={t('settings.add_product')}>
+      <BottomSheet isOpen={showAdd} onClose={() => setShowAdd(false)} title={editingProduct ? "Modifier produit" : t('settings.add_product')}>
         <div className="space-y-6 pt-4">
           <Input
             label={t('settings.product_name')}
@@ -293,11 +338,11 @@ export default function ProductManagementPage() {
 
           <Button 
             className="w-full h-14" 
-            onClick={handleAddProduct}
+            onClick={handleSaveProduct}
             isLoading={isSaving}
             disabled={!name || price < 0}
           >
-            {t('settings.add_to_catalog')}
+            {editingProduct ? "Enregistrer" : t('settings.add_to_catalog')}
           </Button>
         </div>
       </BottomSheet>

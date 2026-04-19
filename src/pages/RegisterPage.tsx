@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { User, Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useUIStore } from '../stores/uiStore'
+import { useAuthStore } from '../stores/authStore'
 import { useTranslation, useLanguageStore } from '../i18n'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -12,12 +13,19 @@ export default function RegisterPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const addToast = useUIStore((state) => state.addToast)
+  const { type, isLoading: authLoading } = useAuthStore()
 
   const [isLoading, setIsLoading] = useState(false)
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading && type) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [type, authLoading, navigate])
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()

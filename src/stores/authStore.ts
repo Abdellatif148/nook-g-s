@@ -24,8 +24,14 @@ export const useAuthStore = create<AuthState>()(
       staff: null,
       cafe: null,
       isLoading: true,
-      setOwner: (user) => set({ owner: user, type: user ? 'owner' : null }),
-      setStaff: (staff) => set({ staff, type: staff ? 'staff' : null }),
+      setOwner: (user) => set((state) => ({ 
+        owner: user, 
+        type: user ? 'owner' : (state.type === 'staff' ? 'staff' : null) 
+      })),
+      setStaff: (staff) => set((state) => ({ 
+        staff, 
+        type: staff ? 'staff' : (state.type === 'owner' ? 'owner' : null) 
+      })),
       setCafe: (cafe) => set({ cafe }),
       setLoading: (loading) => set({ isLoading: loading }),
       logout: () => {
