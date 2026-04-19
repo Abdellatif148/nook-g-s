@@ -6,17 +6,17 @@ import {
   RefreshCw, Activity, CheckCircle, AlertTriangle, 
   Banknote, CreditCard, Gift, Wallet, ChevronRight, Loader2
 } from 'lucide-react'
-import { TopBar } from '../components/layout/TopBar'
-import { BottomNav } from '../components/layout/BottomNav'
-import { SessionCard } from '../components/sessions/SessionCard'
-import { Button } from '../components/ui/Button'
-import { useAuthStore } from '../stores/authStore'
-import { useSessionStore } from '../stores/sessionStore'
-import { useUIStore } from '../stores/uiStore'
-import { useRealtime } from '../hooks/useRealtime'
-import { useTranslation } from '../i18n'
-import { supabase } from '../lib/supabase'
-import { Session } from '../types'
+import { TopBar } from '../../components/layout/TopBar'
+import { BottomNav } from '../../components/layout/BottomNav'
+import { SessionCard } from './components/SessionCard'
+import { Button } from '../../components/ui/Button'
+import { useAuthStore } from '../../stores/authStore'
+import { useSessionStore } from '../../stores/sessionStore'
+import { useUIStore } from '../../stores/uiStore'
+import { useRealtime } from '../../hooks/useRealtime'
+import { useTranslation } from '../../i18n'
+import { supabase } from '../../lib/supabase'
+import { Session } from '../../types'
 import { format } from 'date-fns'
 
 export default function DashboardPage() {

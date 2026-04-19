@@ -5,16 +5,16 @@ import {
   ChevronLeft, Search, Filter, Banknote, CreditCard, 
   Wallet, Gift, Clock, Calendar, ChevronRight, Check
 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import { useAuthStore } from '../stores/authStore'
-import { useTranslation } from '../i18n'
-import { Session } from '../types'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
+import { useTranslation } from '../../i18n'
+import { Session } from '../../types'
 import { format, isToday, isYesterday, startOfDay, startOfWeek, startOfMonth } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { TopBar } from '../components/layout/TopBar'
-import { BottomNav } from '../components/layout/BottomNav'
-import { Input } from '../components/ui/Input'
-import { BottomSheet } from '../components/ui/BottomSheet'
+import { TopBar } from '../../components/layout/TopBar'
+import { BottomNav } from '../../components/layout/BottomNav'
+import { Input } from '../../components/ui/Input'
+import { BottomSheet } from '../../components/ui/BottomSheet'
 
 export default function SessionHistoryPage() {
   const { t } = useTranslation()

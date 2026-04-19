@@ -6,19 +6,19 @@ import {
   BarChart2, Users, Settings, Trash2, Loader2, Check,
   Search, Filter, Power, DollarSign, Lock, MessageCircle, Phone
 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import { useAuthStore } from '../stores/authStore'
-import { useUIStore } from '../stores/uiStore'
-import { useTranslation } from '../i18n'
-import { useAudit } from '../hooks/useAudit'
-import { Staff } from '../types'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { BottomSheet } from '../components/ui/BottomSheet'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { NumPad } from '../components/ui/NumPad'
-import { PINDots } from '../components/ui/PINDots'
-import { hashPIN } from '../lib/crypto'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
+import { useUIStore } from '../../stores/uiStore'
+import { useTranslation } from '../../i18n'
+import { useAudit } from '../../shared/hooks/useAudit'
+import { Staff } from '../../types'
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
+import { BottomSheet } from '../../components/ui/BottomSheet'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { NumPad } from '../../components/ui/NumPad'
+import { PINDots } from '../../components/ui/PINDots'
+import { hashPIN } from '../../lib/crypto'
 
 export default function StaffManagementPage() {
   const { t } = useTranslation()

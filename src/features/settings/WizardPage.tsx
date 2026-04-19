@@ -5,15 +5,15 @@ import {
   Store, MapPin, Navigation, Phone, Armchair, Clock, Star, Timer, 
   User, CheckCircle, ArrowRight, Copy, Check, Loader2, Sliders, Lock
 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import { useAuthStore } from '../stores/authStore'
-import { useUIStore } from '../stores/uiStore'
-import { useTranslation } from '../i18n'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { NumPad } from '../components/ui/NumPad'
-import { PINDots } from '../components/ui/PINDots'
-import { hashPIN } from '../lib/crypto'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
+import { useUIStore } from '../../stores/uiStore'
+import { useTranslation } from '../../i18n'
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
+import { NumPad } from '../../components/ui/NumPad'
+import { PINDots } from '../../components/ui/PINDots'
+import { hashPIN } from '../../lib/crypto'
 
 export default function WizardPage() {
   const { t } = useTranslation()

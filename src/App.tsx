@@ -3,28 +3,28 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AnimatePresence, motion } from 'motion/react'
 import { supabase } from './lib/supabase'
 import { useAuthStore } from './stores/authStore'
-import { useSessionStore } from './stores/sessionStore'
 import { useUIStore } from './stores/uiStore'
-import { processSyncQueue } from './lib/offlineSync'
+import { processSyncQueue } from './lib/offline/sync'
 import { Loader2 } from 'lucide-react'
 import { ToastContainer } from './components/ui/Toast'
+import { ConnectivityBanner } from './components/layout/ConnectivityBanner'
 
-// Pages (to be created)
-import WelcomePage from './pages/WelcomePage'
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
-import WizardPage from './pages/WizardPage'
-import DashboardPage from './pages/DashboardPage'
-import NewSessionPage from './pages/NewSessionPage'
-import SessionDetailPage from './pages/SessionDetailPage'
-import SessionHistoryPage from './pages/SessionHistoryPage'
-import ClientsPage from './pages/ClientsPage'
-import ClientDetailPage from './pages/ClientDetailPage'
-import ReportsPage from './pages/ReportsPage'
-import SettingsPage from './pages/SettingsPage'
-import StaffManagementPage from './pages/StaffManagementPage'
-import ProductManagementPage from './pages/ProductManagementPage'
-import AuditLogPage from './pages/AuditLogPage'
+// Features
+import WelcomePage from './features/auth/WelcomePage'
+import LoginPage from './features/auth/LoginPage'
+import RegisterPage from './features/auth/RegisterPage'
+import WizardPage from './features/settings/WizardPage'
+import DashboardPage from './features/sessions/DashboardPage'
+import NewSessionPage from './features/sessions/NewSessionPage'
+import SessionDetailPage from './features/sessions/SessionDetailPage'
+import SessionHistoryPage from './features/sessions/SessionHistoryPage'
+import ClientsPage from './features/clients/ClientsPage'
+import ClientDetailPage from './features/clients/ClientDetailPage'
+import ReportsPage from './features/reports/ReportsPage'
+import SettingsPage from './features/settings/SettingsPage'
+import StaffManagementPage from './features/staff/StaffManagementPage'
+import ProductManagementPage from './features/products/ProductManagementPage'
+import AuditLogPage from './features/settings/AuditLogPage'
 import { PermissionGate } from './components/ui/PermissionGate'
 
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
@@ -84,48 +84,37 @@ function AppRoutes() {
       
       let session = null;
       try {
-        // 1. Check Supabase Auth (Owner)
         const { data } = await supabase.auth.getSession()
         session = data.session;
       } catch (e) {
-        console.warn("Failed to get session online, checking cached state", e);
+        console.warn("Failed to get session online", e);
       }
       
-      // Add minimum loading time for the splash screen effect
-      const minLoadTime = new Promise(resolve => setTimeout(resolve, 2000))
+      const minLoadTime = new Promise(resolve => setTimeout(resolve, 1000))
       
       let authPromise = (async () => {
         try {
           if (session?.user) {
             setOwner(session.user)
-            const { data: cafe, error } = await supabase
+            const { data: cafe } = await supabase
               .from('cafes')
               .select('*')
               .eq('owner_id', session.user.id)
               .single()
             
-            if (cafe) {
-              setCafe(cafe)
-            } else if (error && (error.message.includes('Failed to fetch') || !navigator.onLine)) {
-              // Offline fallback, user is cached in store
-            } else if (error && error.code !== 'PGRST116') {
-               // Other error
-            } else if (!cafe && navigator.onLine) {
-               // No cafe found online, user might have deleted it but it's okay, maybe wizard 
-            }
+            if (cafe) setCafe(cafe)
           } else {
-            // 2. Check Local Storage (Staff)
             const staffSession = localStorage.getItem('nook_staff_session')
             if (staffSession) {
               const parsed = JSON.parse(staffSession)
               if (new Date(parsed.expires_at) > new Date()) {
-                const { data: staff, error: staffError } = await supabase
+                const { data: staff } = await supabase
                   .from('staff')
                   .select('*')
                   .eq('id', parsed.staff_id)
                   .single()
                 
-                const { data: cafe, error: cafeError } = await supabase
+                const { data: cafe } = await supabase
                   .from('cafes')
                   .select('*')
                   .eq('id', parsed.cafe_id)
@@ -134,30 +123,14 @@ function AppRoutes() {
                 if (staff && cafe) {
                   setStaff(staff)
                   setCafe(cafe)
-                } else if ((staffError || cafeError) && (!navigator.onLine || staffError?.message?.includes('fetch') || cafeError?.message?.includes('fetch'))) {
-                  // Keep whatever is cached in the auth store offline
-                } else {
-                  // Online but staff or cafe deleted/not found
-                  localStorage.removeItem('nook_staff_session')
-                  if (navigator.onLine) logout()
                 }
-              } else {
-                localStorage.removeItem('nook_staff_session')
-                if (navigator.onLine) logout()
               }
-            } else {
-              // No sessions active, so make sure store is clear
-              if (navigator.onLine) logout()
             }
           }
-        } catch (e) {
-          // If it throws anywhere due to network, ignore and use cached state
-          console.warn("Auth check failed, using cached state if available", e);
-        }
+        } catch (e) {}
       })();
 
       await Promise.all([authPromise, minLoadTime])
-      
       setLoading(false)
       
       if (navigator.onLine) {
@@ -276,6 +249,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-bg text-text selection:bg-accent/30">
+<ConnectivityBanner />
         <AppRoutes />
         <ToastContainer />
       </div>
