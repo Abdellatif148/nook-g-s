@@ -1,6 +1,6 @@
 import { motion } from 'motion/react'
 import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react'
-import { useUIStore, Toast as ToastType } from '../../stores/uiStore'
+import { useUIStore, Toast as ToastType } from '../../../stores/uiStore'
 
 export const Toast = ({ toast }: { toast: ToastType }) => {
   const removeToast = useUIStore((state) => state.removeToast)

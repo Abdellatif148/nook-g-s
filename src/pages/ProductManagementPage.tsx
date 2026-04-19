@@ -9,12 +9,12 @@ import {
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { useUIStore } from '../stores/uiStore'
-import { useTranslation } from '../hooks/useTranslation'
+import { useTranslation } from '../shared/hooks/useTranslation'
 import { Product } from '../types'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { BottomSheet } from '../components/ui/BottomSheet'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { Button } from '../shared/components/ui/Button'
+import { Input } from '../shared/components/ui/Input'
+import { BottomSheet } from '../shared/components/ui/BottomSheet'
+import { ConfirmDialog } from '../shared/components/ui/ConfirmDialog'
 
 export default function ProductManagementPage() {
   const { t } = useTranslation()

@@ -22,12 +22,12 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUIStore } from '../stores/uiStore'
-import { useTranslation } from '../hooks/useTranslation'
-import { TopBar } from '../components/layout/TopBar'
-import { BottomNav } from '../components/layout/BottomNav'
-import { SessionCard } from '../components/sessions/SessionCard'
+import { useTranslation } from '../shared/hooks/useTranslation'
+import { TopBar } from '../shared/components/layout/TopBar'
+import { BottomNav } from '../shared/components/layout/BottomNav'
+import { SessionCard } from '../features/sessions/components/SessionCard'
 import { format } from 'date-fns'
-import { useRealtime } from '../hooks/useRealtime'
+import { useRealtime } from '../shared/hooks/useRealtime'
 
 export default function DashboardPage() {
   const { t } = useTranslation()

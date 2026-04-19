@@ -4,9 +4,9 @@ import { motion } from 'motion/react'
 import { User, Mail, Lock, Eye, EyeOff, Shield } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useUIStore } from '../stores/uiStore'
-import { useTranslation } from '../hooks/useTranslation'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import { useTranslation } from '../shared/hooks/useTranslation'
+import { Button } from '../shared/components/ui/Button'
+import { Input } from '../shared/components/ui/Input'
 
 export default function RegisterPage() {
   const { t } = useTranslation()

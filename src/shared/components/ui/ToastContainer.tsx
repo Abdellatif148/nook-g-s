@@ -1,4 +1,4 @@
-import { useUIStore } from '../../stores/uiStore'
+import { useUIStore } from '../../../stores/uiStore'
 import { AnimatePresence } from 'motion/react'
 import { Toast } from './Toast'
 

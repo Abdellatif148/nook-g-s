@@ -1,5 +1,5 @@
 import { translations } from '../i18n/translations'
-import { useUIStore } from '../stores/uiStore'
+import { useUIStore } from '../../stores/uiStore'
 
 export const useTranslation = () => {
   const { language } = useUIStore()

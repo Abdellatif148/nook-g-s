@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import { useAuthStore } from '../stores/authStore'
-import { useSessionStore } from '../stores/sessionStore'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
+import { useSessionStore } from '../../stores/sessionStore'
 
 export const useRealtime = () => {
   const { cafe } = useAuthStore()

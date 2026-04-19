@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Search, X, User, Clock, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
-import { useAuthStore } from '../../stores/authStore'
+import { supabase } from '../../../lib/supabase'
+import { useAuthStore } from '../../../stores/authStore'
 import { motion, AnimatePresence } from 'motion/react'
-import { Session, ClientAccount } from '../../types'
+import { Session, ClientAccount } from '../../../types'
 import { useTranslation } from '../../i18n'
 
 export const GlobalSearch = () => {

@@ -9,41 +9,50 @@ import {
   Clock,
   Zap,
   SlidersHorizontal,
-  MessageSquare,
   ChevronDown,
   Play,
   Eye,
-  Loader2
+  Coffee,
+  CheckCircle2,
+  ArrowRight
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUIStore } from '../stores/uiStore'
-import { useTranslation } from '../hooks/useTranslation'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import { useTranslation } from '../shared/hooks/useTranslation'
+import { Button } from '../shared/components/ui/Button'
+import { Input } from '../shared/components/ui/Input'
 import { format } from 'date-fns'
+import { smartWrite } from '../lib/offline/writeHelper'
+import { useConnectivity } from '../shared/hooks/useConnectivity'
+
+type Step = 'mode' | 'details' | 'confirm'
 
 export default function NewSessionPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { isOnline } = useConnectivity()
   const { cafe, type, owner, staff } = useAuthStore()
   const { activeSessions } = useSessionStore()
   const { addToast } = useUIStore()
 
+  const [step, setStep] = useState<Step>('mode')
   const [isLoading, setIsLoading] = useState(false)
+
+  // Data
+  const [billingMode, setBillingMode] = useState<'time' | 'consumption' | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null)
   const [rateType, setRateType] = useState<'standard' | 'premium' | 'custom'>('standard')
   const [customRate, setCustomRate] = useState<number>(0)
   const [notes, setNotes] = useState('')
-  const [showNotes, setShowNotes] = useState(false)
   const [recentCustomers, setRecentCustomers] = useState<string[]>([])
 
   useEffect(() => {
     const loadRecents = async () => {
-      if (!cafe) return
+      if (!cafe || !isOnline) return
       const { data } = await supabase
         .from('sessions')
         .select('customer_name')
@@ -57,52 +66,49 @@ export default function NewSessionPage() {
       }
     }
     loadRecents()
-  }, [cafe])
+  }, [cafe, isOnline])
 
   const occupiedSeats = activeSessions.map(s => s.seat_number)
 
   const handleStartSession = async () => {
-    if (!customerName || !selectedSeat || !cafe) return
+    if (!customerName || !selectedSeat || !cafe || !billingMode) return
     
-    // Re-validate seat
-    if (activeSessions.some(s => s.seat_number === selectedSeat)) {
-      addToast("Cette place est déjà occupée", "error")
-      return
-    }
-
     setIsLoading(true)
     try {
       const rate = rateType === 'standard' ? cafe.default_rate : 
                    rateType === 'premium' ? cafe.premium_rate : customRate
 
-      const { data: session, error } = await supabase
-        .from('sessions')
-        .insert({
-          cafe_id: cafe.id,
-          staff_id: type === 'owner' ? owner?.id : staff?.id,
-          customer_name: customerName.trim(),
-          customer_phone: customerPhone.trim(),
-          seat_number: selectedSeat,
-          rate_per_hour: rate,
-          started_at: new Date().toISOString(),
-          status: 'active',
-          notes: notes.trim(),
-          extras: [],
-          extras_total: 0,
-          total_amount: 0
-        })
-        .select()
-        .single()
+      const payload = {
+        cafe_id: cafe.id,
+        staff_id: type === 'owner' ? owner?.id : staff?.id,
+        customer_name: customerName.trim(),
+        customer_phone: customerPhone.trim(),
+        seat_number: selectedSeat,
+        rate_per_hour: billingMode === 'time' ? rate : 0,
+        billing_mode: billingMode,
+        rate: billingMode === 'time' ? rate : null,
+        rate_unit: billingMode === 'time' ? 60 : null,
+        started_at: new Date().toISOString(),
+        status: 'active',
+        notes: notes.trim(),
+        extras: [],
+        extras_total: 0,
+        total_amount: 0
+      }
+
+      const { error } = await smartWrite('open_session', 'sessions', payload, isOnline)
 
       if (error) throw error
 
-      await supabase.from('audit_log').insert({
-        cafe_id: cafe.id,
-        staff_id: type === 'owner' ? owner?.id : staff?.id,
-        is_owner: type === 'owner',
-        action: 'session_started',
-        details: { customer_name: customerName, seat_number: selectedSeat, rate_per_hour: rate }
-      })
+      if (isOnline) {
+        await supabase.from('audit_log').insert({
+          cafe_id: cafe.id,
+          staff_id: type === 'owner' ? owner?.id : staff?.id,
+          is_owner: type === 'owner',
+          action: 'session_started',
+          details: { customer_name: customerName, seat_number: selectedSeat, billing_mode: billingMode }
+        })
+      }
 
       addToast(`Session démarrée — Place ${selectedSeat}`, 'success')
       navigate('/dashboard')
@@ -115,250 +121,201 @@ export default function NewSessionPage() {
 
   return (
     <div className="min-h-screen bg-bg relative pb-32">
-      {/* Background Grid */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
-           style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-
       <header className="fixed top-0 left-0 right-0 h-14 bg-bg/92 backdrop-blur-md border-b border-border z-[100] flex items-center justify-between px-4">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-text2 hover:text-text transition-colors">
+        <button onClick={() => step === 'mode' ? navigate(-1) : setStep(step === 'confirm' ? 'details' : 'mode')} className="p-2 -ml-2 text-text2 hover:text-text">
           <X size={22} />
         </button>
         <span className="text-base font-bold text-text">{t('sessions.new')}</span>
         <div className="w-10" />
       </header>
 
-      <main className="pt-20 px-4 space-y-7 relative z-10">
-        {/* CUSTOMER SECTION */}
-        <section className="space-y-3">
-          <label className="text-[11px] font-bold text-text3 uppercase tracking-[0.1em]">{t('session.customer') || 'Client'}</label>
-          <div className="space-y-3">
-            <Input
-              autoFocus
-              placeholder={t('session.customer_name') || 'Nom du client'}
-              icon={<UserCircle size={16} />}
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="h-[52px] text-base font-medium"
-              rightElement={
-                customerName && (
-                  <button onClick={() => setCustomerName('')} className="text-text3 hover:text-text">
-                    <X size={16} />
-                  </button>
-                )
-              }
-            />
-            
-            {recentCustomers.length > 0 && (
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                <span className="text-[11px] text-text3 whitespace-nowrap">{t('session.recents') }:</span>
-                {recentCustomers.map(name => (
-                  <motion.button
-                    key={name}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setCustomerName(name)}
-                    className="flex-shrink-0 px-3 py-1 bg-surface2 border border-border rounded-full text-[13px] font-medium text-text2 active:bg-accent-glow active:text-accent2 active:border-accent-border transition-colors"
-                  >
-                    {name}
-                  </motion.button>
-                ))}
-              </div>
-            )}
-
-            <Input
-              type="tel"
-              placeholder={t('session.phone') }
-              icon={<Phone size={16} />}
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-            />
-          </div>
-        </section>
-
-        {/* SEAT SECTION */}
-        <section className="space-y-3">
-          <label className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.seat') }</label>
-          <div className="grid grid-cols-5 gap-2">
-            {Array.from({ length: cafe?.total_seats || 20 }).map((_, i) => {
-              const seatNum = i + 1
-              const isOccupied = occupiedSeats.includes(seatNum)
-              const isSelected = selectedSeat === seatNum
-              
-              return (
-                <motion.button
-                  key={seatNum}
-                  whileTap={!isOccupied ? { scale: 0.90 } : {}}
-                  onClick={() => !isOccupied && setSelectedSeat(seatNum)}
-                  className={`h-14 flex flex-col items-center justify-center rounded-[10px] border transition-all relative ${
-                    isOccupied 
-                      ? 'bg-[rgba(239,68,68,0.05)] border-[rgba(239,68,68,0.2)] text-error opacity-60 cursor-not-allowed'
-                      : isSelected
-                        ? 'bg-accent-glow border-2 border-accent text-accent2 shadow-[0_0_12px_rgba(249,115,22,0.2)] z-10'
-                        : 'bg-surface border-border text-text2'
-                  }`}
-                  animate={isSelected ? { scale: 1.05 } : { scale: 1 }}
-                >
-                  <span className="text-[15px] font-mono font-bold">{seatNum}</span>
-                  {isOccupied && (
-                    <span className="text-[9px] font-bold text-error/80 absolute bottom-1">
-                      {activeSessions.find(s => s.seat_number === seatNum)?.customer_name[0]}
-                    </span>
-                  )}
-                </motion.button>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* RATE SECTION */}
-        <section className="space-y-3">
-          <label className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.rate') }</label>
-          <div className="space-y-2">
-            {[
-              { id: 'standard', icon: Clock, label: t('session.standard') , rate: cafe?.default_rate },
-              { id: 'premium', icon: Zap, label: t('session.premium') , rate: cafe?.premium_rate },
-            ].map(r => (
-              <button
-                key={r.id}
-                onClick={() => setRateType(r.id as any)}
-                className={`w-full p-4 rounded-[10px] border flex items-center justify-between transition-all ${
-                  rateType === r.id ? 'bg-accent-glow border-accent-border' : 'bg-surface border-border'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <r.icon size={18} className="text-accent" />
-                  <div className="text-left">
-                    <div className="text-sm font-bold text-text">{r.label}</div>
-                    <div className="text-[12px] font-mono text-text2">{r.rate?.toFixed(2)} DH/h</div>
-                  </div>
-                </div>
-                <div className={`w-3 h-3 rounded-full border ${
-                  rateType === r.id ? 'bg-accent border-accent' : 'border-text3'
-                }`} />
-              </button>
-            ))}
-
-            <div className={`rounded-[10px] border transition-all overflow-hidden ${
-              rateType === 'custom' ? 'bg-accent-glow border-accent-border' : 'bg-surface border-border'
-            }`}>
-              <button
-                onClick={() => setRateType('custom')}
-                className="w-full p-4 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <SlidersHorizontal size={18} className="text-text2" />
-                  <div className="text-sm font-bold text-text">{t('session.custom') }</div>
-                </div>
-                <div className={`w-3 h-3 rounded-full border ${
-                  rateType === 'custom' ? 'bg-accent border-accent' : 'border-text3'
-                }`} />
-              </button>
-              <AnimatePresence>
-                {rateType === 'custom' && (
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: 'auto' }}
-                    exit={{ height: 0 }}
-                    className="px-4 pb-4"
-                  >
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        step="0.5"
-                        min="0.5"
-                        placeholder={`DH/${t('wizard.step2.billing_increment') || 'h'}`}
-                        value={customRate || ''}
-                        onChange={(e) => setCustomRate(parseFloat(e.target.value) || 0)}
-                        className="font-mono"
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-text3 font-mono">DH/h</span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </section>
-
-        {/* NOTE SECTION */}
-        <section className="space-y-2">
-          <button 
-            onClick={() => setShowNotes(!showNotes)}
-            className="flex items-center justify-between w-full py-1"
-          >
-            <div className="flex items-center gap-2 text-text3">
-              <MessageSquare size={16} />
-              <span className="text-[13px] font-medium">{t('session.note') }</span>
-            </div>
-            <ChevronDown size={16} className={`text-text3 transition-transform ${showNotes ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showNotes && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-              >
-                <textarea
-                  className="input min-h-[80px] py-3 resize-none font-sans"
-                  placeholder={t('session.note_placeholder') }
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </section>
-
-        {/* PREVIEW */}
-        <AnimatePresence>
-          {customerName && selectedSeat && (
+      <main className="pt-20 px-4 space-y-8 relative z-10">
+        <AnimatePresence mode="wait">
+          {step === 'mode' && (
             <motion.div
-              initial={{ y: 12, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 12, opacity: 0 }}
-              className="p-3.5 bg-surface2 border border-accent-border rounded-xl"
+              key="step-mode"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
             >
-              <div className="flex items-center gap-1.5 mb-2.5">
-                <Eye size={12} className="text-text3" />
-                <span className="text-[11px] font-bold text-text3 uppercase tracking-widest">{t('session.preview') }</span>
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-text">Mode de facturation</h2>
+                <p className="text-sm text-text3">Choisissez comment cette session sera facturée.</p>
               </div>
-              <div className="grid grid-cols-2 gap-y-2.5 gap-x-4">
-                <div>
-                  <div className="text-[10px] text-text3 uppercase tracking-wider">Client</div>
-                  <div className="text-[13px] font-bold text-text truncate">{customerName}</div>
+
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={() => { setBillingMode('time'); setStep('details'); }}
+                  className="p-5 rounded-2xl border-2 border-border bg-surface2 hover:border-accent group transition-all text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-accent-glow flex items-center justify-center text-accent">
+                      <Clock size={24} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-base font-bold text-text group-hover:text-accent">TEMPS</div>
+                      <p className="text-[13px] text-text3">Le client paie selon la durée. Les commandes sont suivies mais non facturées.</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => { setBillingMode('consumption'); setStep('details'); }}
+                  className="p-5 rounded-2xl border-2 border-border bg-surface2 hover:border-amber-500 group transition-all text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                      <Coffee size={24} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-base font-bold text-text group-hover:text-amber-500">CONSOMMATION</div>
+                      <p className="text-[13px] text-text3">Le client paie uniquement ses commandes. Le temps est affiché mais jamais facturé.</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'details' && (
+            <motion.div
+              key="step-details"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-7"
+            >
+              <section className="space-y-3">
+                <label className="text-[11px] font-bold text-text3 uppercase tracking-[0.1em]">Client</label>
+                <div className="space-y-3">
+                  <Input
+                    autoFocus
+                    placeholder="Nom du client"
+                    icon={<UserCircle size={16} />}
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                  />
+                  <Input
+                    type="tel"
+                    placeholder="Téléphone"
+                    icon={<Phone size={16} />}
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                  />
                 </div>
-                <div>
-                  <div className="text-[10px] text-text3 uppercase tracking-wider">Place</div>
-                  <div className="text-[13px] font-mono font-bold text-accent2">{selectedSeat}</div>
+              </section>
+
+              <section className="space-y-3">
+                <label className="text-[11px] font-bold text-text3 uppercase tracking-widest">Place</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {Array.from({ length: cafe?.total_seats || 20 }).map((_, i) => {
+                    const seatNum = i + 1
+                    const isOccupied = occupiedSeats.includes(seatNum)
+                    const isSelected = selectedSeat === seatNum
+                    return (
+                      <button
+                        key={seatNum}
+                        disabled={isOccupied}
+                        onClick={() => setSelectedSeat(seatNum)}
+                        className={`h-12 rounded-lg border flex items-center justify-center font-mono font-bold ${
+                          isOccupied ? 'bg-surface/50 border-border opacity-40' :
+                          isSelected ? 'bg-accent border-accent text-white' : 'bg-surface2 border-border'
+                        }`}
+                      >
+                        {seatNum}
+                      </button>
+                    )
+                  })}
                 </div>
-                <div>
-                  <div className="text-[10px] text-text3 uppercase tracking-wider">Tarif</div>
-                  <div className="text-[13px] font-mono font-bold text-text">
-                    {(rateType === 'custom' ? customRate : (rateType === 'premium' ? cafe?.premium_rate : cafe?.default_rate))?.toFixed(2)} DH/h
+              </section>
+
+              {billingMode === 'time' && (
+                <section className="space-y-3">
+                  <label className="text-[11px] font-bold text-text3 uppercase tracking-widest">Tarif</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setRateType('standard')}
+                      className={`p-3 rounded-lg border text-left ${rateType === 'standard' ? 'bg-accent-glow border-accent' : 'bg-surface2 border-border'}`}
+                    >
+                      <div className="text-xs font-bold">Standard</div>
+                      <div className="text-lg font-mono font-bold">{cafe?.default_rate.toFixed(2)}</div>
+                    </button>
+                    <button
+                      onClick={() => setRateType('premium')}
+                      className={`p-3 rounded-lg border text-left ${rateType === 'premium' ? 'bg-accent-glow border-accent' : 'bg-surface2 border-border'}`}
+                    >
+                      <div className="text-xs font-bold">Premium</div>
+                      <div className="text-lg font-mono font-bold">{cafe?.premium_rate.toFixed(2)}</div>
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              <Button
+                className="w-full h-[52px]"
+                disabled={!customerName || !selectedSeat}
+                onClick={() => setStep('confirm')}
+              >
+                Suivant <ArrowRight size={18} className="ml-2" />
+              </Button>
+            </motion.div>
+          )}
+
+          {step === 'confirm' && (
+            <motion.div
+              key="step-confirm"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div className="bg-surface2 border border-border rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-text3">Client</div>
+                  <div className="text-base font-bold text-text">{customerName}</div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-text3">Place</div>
+                  <div className="text-base font-bold text-accent">{selectedSeat}</div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-text3">Mode</div>
+                  <div className={`px-3 py-1 rounded-full text-[11px] font-bold ${
+                    billingMode === 'time' ? 'bg-accent/10 text-accent' : 'bg-amber-500/10 text-amber-500'
+                  }`}>
+                    {billingMode === 'time' ? 'TEMPS' : 'CONSOMMATION'}
                   </div>
                 </div>
-                <div>
-                  <div className="text-[10px] text-text3 uppercase tracking-wider">Début</div>
-                  <div className="text-[13px] font-mono font-bold text-text">{format(new Date(), 'HH:mm')}</div>
-                </div>
+                {billingMode === 'time' && (
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-text3">Tarif</div>
+                    <div className="text-base font-mono font-bold">
+                      {(rateType === 'standard' ? cafe?.default_rate : rateType === 'premium' ? cafe?.premium_rate : customRate)?.toFixed(2)} DH/h
+                    </div>
+                  </div>
+                )}
               </div>
+
+              <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl flex gap-3 items-start">
+                <CheckCircle2 size={18} className="text-accent shrink-0 mt-0.5" />
+                <p className="text-[13px] text-text2 leading-relaxed">
+                  Cette sélection est définitive pour cette session. Le mode de facturation ne pourra plus être modifié.
+                </p>
+              </div>
+
+              <Button
+                className="w-full h-[52px]"
+                onClick={handleStartSession}
+                isLoading={isLoading}
+              >
+                <Play size={18} className="mr-2" />
+                Démarrer la session
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
-
-      {/* FIXED BOTTOM ACTION */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-linear-to-t from-bg via-bg/80 to-transparent pt-8 z-50">
-        <Button
-          onClick={handleStartSession}
-          className="w-full h-[52px]"
-          disabled={!customerName || !selectedSeat}
-          isLoading={isLoading}
-        >
-          <Play size={18} className="fill-current" />
-          {t('session.start')}
-        </Button>
-      </div>
     </div>
   )
 }
