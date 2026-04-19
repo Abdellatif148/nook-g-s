@@ -9,12 +9,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 /**
  * Supabase client.
+ * Falls back to a placeholder URL so the app can still boot when credentials
+ * are not yet configured — all network calls will fail gracefully.
  * We don't pass a Database generic here to avoid fighting Supabase's internal
  * type resolution. All table rows are typed explicitly via our service layer.
  */
 export const supabase = createClient(
-  supabaseUrl || '',
-  supabaseAnonKey || '',
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-anon-key',
   {
     auth: {
       persistSession: true,

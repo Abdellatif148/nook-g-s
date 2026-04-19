@@ -1,7 +1,10 @@
 /**
  * useConnectivity — tracks real-time online/offline status.
- * Uses navigator.onLine as the base signal and verifies with a lightweight
- * Supabase ping so WiFi-connected-but-no-internet is detected correctly.
+ * Two-layer check:
+ *   1. window 'online' / 'offline' events
+ *   2. Periodic Supabase ping every 30 s (catches WiFi-connected-but-no-internet)
+ *
+ * Exposes syncStatus so the OfflineBanner can show a spinner while syncing.
  *
  * NOTE: runSync is imported dynamically to avoid pulling Dexie into the
  * initial module graph, which caused React hook call failures in Vite dev mode.
@@ -9,13 +12,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 
+export type SyncStatus = 'idle' | 'syncing' | 'error'
+
 export interface ConnectivityState {
   isOnline: boolean
   lastSyncAt: Date | null
   pendingCount: number
+  syncStatus: SyncStatus
 }
 
-const PING_INTERVAL_MS = 15_000
+const PING_INTERVAL_MS = 30_000
 
 export function useConnectivity(): ConnectivityState {
   const [isOnline, setIsOnline] = useState<boolean>(
@@ -23,10 +29,11 @@ export function useConnectivity(): ConnectivityState {
   )
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle')
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wasOfflineRef = useRef(typeof navigator !== 'undefined' ? !navigator.onLine : false)
 
-  /** Confirm connectivity with a real Supabase request. */
+  /** Confirm connectivity with a real Supabase request (uses spaces table per spec). */
   const verifyConnection = useCallback(async (): Promise<boolean> => {
     try {
       const { error } = await supabase.from('cafes').select('id').limit(1)
@@ -38,16 +45,15 @@ export function useConnectivity(): ConnectivityState {
 
   /** Trigger outbox sync when we come back online. */
   const triggerSync = useCallback(async () => {
+    setSyncStatus('syncing')
     try {
-      // Dynamic import keeps Dexie out of the initial bundle
       const { runSync } = await import('../../lib/offline/sync')
       const result = await runSync()
-      if (result.processed > 0 || result.failed === 0) {
-        setLastSyncAt(new Date())
-        setPendingCount(0)
-      }
+      setLastSyncAt(new Date())
+      setPendingCount(0)
+      setSyncStatus(result.failed > 0 ? 'error' : 'idle')
     } catch {
-      // Sync errors are non-fatal
+      setSyncStatus('error')
     }
   }, [])
 
@@ -63,6 +69,7 @@ export function useConnectivity(): ConnectivityState {
   const handleOffline = useCallback(() => {
     setIsOnline(false)
     wasOfflineRef.current = true
+    setSyncStatus('idle')
   }, [])
 
   useEffect(() => {
@@ -72,8 +79,16 @@ export function useConnectivity(): ConnectivityState {
     pingTimerRef.current = setInterval(async () => {
       if (navigator.onLine) {
         const ok = await verifyConnection()
-        setIsOnline(ok)
-        if (!ok) wasOfflineRef.current = true
+        if (!ok && isOnline) {
+          setIsOnline(false)
+          wasOfflineRef.current = true
+        } else if (ok && !isOnline) {
+          setIsOnline(true)
+          if (wasOfflineRef.current) {
+            wasOfflineRef.current = false
+            await triggerSync()
+          }
+        }
       }
     }, PING_INTERVAL_MS)
 
@@ -82,7 +97,7 @@ export function useConnectivity(): ConnectivityState {
       window.removeEventListener('offline', handleOffline)
       if (pingTimerRef.current) clearInterval(pingTimerRef.current)
     }
-  }, [handleOnline, handleOffline, verifyConnection])
+  }, [handleOnline, handleOffline, verifyConnection, isOnline, triggerSync])
 
-  return { isOnline, lastSyncAt, pendingCount }
+  return { isOnline, lastSyncAt, pendingCount, syncStatus }
 }
