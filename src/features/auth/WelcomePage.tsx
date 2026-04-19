@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { useTranslation, useLanguageStore } from '../i18n'
+import { useTranslation, useLanguageStore } from '../../i18n'
 import { Globe, ArrowRight, CheckCircle2, BarChart3, Users, Zap } from 'lucide-react'
-import { useAuthStore } from '../stores/authStore'
+import { useAuthStore } from '../../stores/authStore'
 
 export default function WelcomePage() {
   const { t } = useTranslation()
