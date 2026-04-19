@@ -12,7 +12,7 @@ export const TopBar = () => {
       <div className="flex items-center gap-2.5">
         <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center text-white font-black text-lg">N</div>
         <div className="flex flex-col -space-y-0.5">
-          <span className="text-[13px] font-bold text-text truncate max-w-[120px]">{cafe?.name}</span>
+          <h1 className="text-[13px] font-bold text-text truncate max-w-[120px]">{cafe?.name}</h1>
           <span className="text-[10px] font-medium text-text3 uppercase tracking-wider">
             {type === 'owner' ? owner?.email?.split('@')[0] : staff?.name}
           </span>
