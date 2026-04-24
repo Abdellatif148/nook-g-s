@@ -24,9 +24,9 @@ export default function SessionHistoryPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('today')
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('all')
   const [customDate, setCustomDate] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'completed' | 'cancelled' | 'active' | 'all'>('completed')
+  const [statusFilter, setStatusFilter] = useState<'completed' | 'cancelled' | 'active' | 'all'>('all')
   const [paymentFilter, setPaymentFilter] = useState<'cash' | 'card' | 'account' | 'free' | 'all'>('all')
   const [isFilterOpen, setIsFilterOpen] = useState(false)
 
@@ -349,7 +349,7 @@ export default function SessionHistoryPage() {
             onClick={() => setIsFilterOpen(false)}
             className="w-full h-12 bg-gradient-to-br from-accent to-[#ea6b0a] text-white font-bold rounded-xl shadow-[0_2px_12px_rgba(249,115,22,0.25)] mt-4 active:scale-[0.98] transition-all"
           >
-            {t('common.apply') || 'Appliquer'}
+            Apply
           </button>
         </div>
       </BottomSheet>
