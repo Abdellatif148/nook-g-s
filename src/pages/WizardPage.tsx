@@ -5,15 +5,15 @@ import {
   Store, MapPin, Navigation, Phone, Armchair, Clock, Star, Timer, 
   User, CheckCircle, ArrowRight, Copy, Check, Loader2, Sliders, Lock
 } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
-import { useAuthStore } from '../../stores/authStore'
-import { useUIStore } from '../../stores/uiStore'
-import { useTranslation } from '../../i18n'
-import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
-import { NumPad } from '../../components/ui/NumPad'
-import { PINDots } from '../../components/ui/PINDots'
-import { hashPIN } from '../../lib/crypto'
+import { supabase } from '../lib/supabase'
+import { useAuthStore } from '../stores/authStore'
+import { useUIStore } from '../stores/uiStore'
+import { useTranslation } from '../i18n'
+import { Button } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
+import { NumPad } from '../components/ui/NumPad'
+import { PINDots } from '../components/ui/PINDots'
+import { hashPIN } from '../lib/crypto'
 
 export default function WizardPage() {
   const { t } = useTranslation()
@@ -193,7 +193,7 @@ export default function WizardPage() {
                   <Input type="number" step="0.5" icon={<Clock size={16} />} value={defaultRate} onChange={(e) => setDefaultRate(parseFloat(e.target.value) || 0)} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-text3 uppercase tracking-wider">Tarif premium (DH/h)</label>
+                  <label className="text-xs font-semibold text-text3 uppercase tracking-wider">Minimum à payer (DH)</label>
                   <Input type="number" step="0.5" icon={<Star size={16} />} value={premiumRate} onChange={(e) => setPremiumRate(parseFloat(e.target.value) || 0)} />
                 </div>
               </div>

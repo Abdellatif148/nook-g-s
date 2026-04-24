@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Armchair, StopCircle, Zap, AlertCircle, Clock as ClockIcon } from 'lucide-react'
+import { Armchair, StopCircle, Zap, AlertCircle, Clock as ClockIcon, FileText } from 'lucide-react'
 import { Session } from '../../types'
 import { useTranslation } from '../../i18n'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
 import { useAuthStore } from '../../stores/authStore'
+import { generateReceiptPDF } from '../../lib/pdf'
 
 interface SessionCardProps {
   session: Session
@@ -35,7 +36,8 @@ export const SessionCard = ({ session, onEnd }: SessionCardProps) => {
       // Calculate amount
       const durationHours = diffMs / 3600000
       const calculatedAmount = durationHours * session.rate_per_hour
-      setAmount(calculatedAmount + session.extras_total)
+      const rawTotal = calculatedAmount + session.extras_total
+      setAmount(Math.max(cafe?.premium_rate || 0, rawTotal))
       
       // Check for long session based on cafe settings
       const alertHours = cafe?.long_session_alert_hours || 3
@@ -53,7 +55,8 @@ export const SessionCard = ({ session, onEnd }: SessionCardProps) => {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className={`card relative overflow-hidden transition-all duration-500 ${
+      onClick={() => onEnd(session)}
+      className={`card relative overflow-hidden transition-all duration-500 cursor-pointer ${
         isLong ? 'border-error/50 bg-error/5 shadow-lg shadow-error/10' : ''
       }`}
     >
@@ -101,14 +104,36 @@ export const SessionCard = ({ session, onEnd }: SessionCardProps) => {
           </div>
         </div>
 
-        <button
-          onClick={() => onEnd(session)}
-          className="flex items-center justify-center w-11 h-11 shrink-0 bg-gradient-to-br from-error/10 to-error/5 border border-error/20 text-error rounded-xl transition-all hover:bg-error/20 active:scale-90 shadow-sm shadow-error/5"
-          title={t('sessions.end')}
-          aria-label={t('sessions.end')}
-        >
-          <StopCircle size={20} className="fill-error/20" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (cafe) {
+                const diffMs = new Date().getTime() - new Date(session.started_at).getTime();
+                const durationMinutes = Math.floor(diffMs / 60000);
+                const rawTimeCost = (durationMinutes / 60) * session.rate_per_hour;
+                generateReceiptPDF(cafe, { ...session, duration_minutes: durationMinutes, time_cost: rawTimeCost, total_amount: amount });
+              }
+            }}
+            className="flex flex-col items-center justify-center w-11 h-11 shrink-0 bg-surface border border-border text-text2 rounded-xl transition-all hover:bg-surface2 hover:text-text active:scale-90"
+            title="Télécharger la facture"
+            aria-label="Télécharger la facture"
+          >
+            <FileText size={16} />
+          </button>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEnd(session);
+            }}
+            className="flex items-center justify-center w-11 h-11 shrink-0 bg-gradient-to-br from-error/10 to-error/5 border border-error/20 text-error rounded-xl transition-all hover:bg-error/20 active:scale-90 shadow-sm shadow-error/5"
+            title={t('sessions.end')}
+            aria-label={t('sessions.end')}
+          >
+            <StopCircle size={20} className="fill-error/20" />
+          </button>
+        </div>
       </div>
     </motion.div>
   )
