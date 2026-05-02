@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'motion/react'
 import { 
   ChevronLeft, MoreVertical, Phone, MessageCircle, 
   PlusCircle, BarChart, TrendingUp, Calendar, 
-  Clock, Banknote, Wallet, Loader2, Play, Trash2, Edit2
+  Clock as ClockIcon, Banknote, Wallet, Loader2, Play, Trash2, Edit2
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/offlineDB'
 import { useAuthStore } from '../stores/authStore'
 import { useUIStore } from '../stores/uiStore'
 import { useTranslation } from '../i18n'
@@ -44,6 +45,18 @@ export default function ClientDetailPage() {
     if (!id) return
     setIsLoading(true)
     
+    // Check local DB first for instant load
+    const cachedClient = await db.clients.get(id);
+    if (cachedClient) {
+        setClient(cachedClient);
+        setIsLoading(false);
+    }
+    
+    if (!navigator.onLine) {
+        setIsLoading(false);
+        return;
+    }
+
     const { data: clientData } = await supabase
       .from('client_accounts')
       .select('*')
@@ -52,6 +65,7 @@ export default function ClientDetailPage() {
     
     if (clientData) {
       setClient(clientData)
+      db.clients.put(clientData)
       
       const { data: sessionData } = await supabase
         .from('sessions')
@@ -316,7 +330,7 @@ export default function ClientDetailPage() {
                   <div key={session.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-surface2 flex items-center justify-center text-text3">
-                        <Clock size={16} />
+                        <ClockIcon size={16} />
                       </div>
                       <div>
                         <div className="text-sm font-semibold text-text">

@@ -1,7 +1,7 @@
-import { LogOut, Plus } from 'lucide-react'
+import { LogOut, Settings } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { GlobalSearch } from './GlobalSearch'
 
 export const TopBar = () => {
@@ -21,10 +21,10 @@ export const TopBar = () => {
       {/* Background with backdrop-blur moved to an absolute child to prevent containing block issues for fixed children */}
       <div className="absolute inset-0 bg-bg/90 backdrop-blur-xl border-b border-border -z-10" />
       
-      <div className="flex items-center gap-2">
+      <Link to="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
         <img src="/favicon.svg" alt="Nook OS" className="w-6 h-6 drop-shadow-sm" />
         <span className="text-sm font-bold text-text hidden sm:inline-block">Nook OS</span>
-      </div>
+      </Link>
 
       <div className="text-sm font-semibold text-text absolute left-1/2 -translate-x-1/2 max-w-[150px] sm:max-w-[200px] truncate text-center">
         {cafe?.name}
@@ -33,10 +33,10 @@ export const TopBar = () => {
       <div className="flex items-center gap-1">
         <GlobalSearch />
         <button 
-          onClick={() => navigate('/sessions/new')}
-          className="w-8 h-8 ml-2 flex items-center justify-center rounded-full bg-accent text-white hover:bg-accent2 transition-colors shadow-[0_2px_10px_rgba(249,115,22,0.3)]"
+          onClick={() => navigate('/settings')}
+          className="w-8 h-8 ml-2 flex items-center justify-center rounded-full bg-surface2 text-text2 hover:text-text transition-colors"
         >
-          <Plus size={18} />
+          <Settings size={18} />
         </button>
         {type === 'staff' && (
           <button 

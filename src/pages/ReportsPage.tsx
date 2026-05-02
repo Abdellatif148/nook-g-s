@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { 
-  BarChart2, TrendingUp, Users, Clock, 
+  BarChart2, TrendingUp, Users, Clock as ClockIcon, 
   Banknote, CreditCard, Wallet, Gift,
   Calendar, ChevronDown, Loader2, Activity, ChevronLeft
 } from 'lucide-react'
@@ -11,11 +11,11 @@ import {
   Tooltip, ResponsiveContainer, Cell 
 } from 'recharts'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/offlineDB'
 import { useAuthStore } from '../stores/authStore'
 import { useTranslation } from '../i18n'
 import { Session } from '../types'
 import { TopBar } from '../components/layout/TopBar'
-import { BottomNav } from '../components/layout/BottomNav'
 import { format, startOfDay, subDays, subMonths } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -37,6 +37,21 @@ export default function ReportsPage() {
       if (period === 'week') startDate = subDays(startDate, 7)
       if (period === 'month') startDate = subMonths(startDate, 1)
 
+      // Load local data first
+      const localSessions = await db.sessions
+          .where('status').equals('completed')
+          .filter(s => new Date(s.ended_at!) >= startDate)
+          .sortBy('ended_at');
+      
+      if (localSessions.length > 0) {
+        setSessions(localSessions)
+      }
+
+      if (!navigator.onLine) {
+         setIsLoading(false)
+         return
+      }
+
       const { data } = await supabase
         .from('sessions')
         .select('*')
@@ -45,7 +60,10 @@ export default function ReportsPage() {
         .gte('ended_at', startDate.toISOString())
         .order('ended_at', { ascending: true })
       
-      if (data) setSessions(data)
+      if (data) {
+         setSessions(data)
+         db.sessions.bulkPut(data)
+      }
       setIsLoading(false)
     }
 
@@ -92,15 +110,8 @@ export default function ReportsPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-bg pb-24">
-      <header className="fixed top-0 left-0 right-0 h-14 bg-bg/90 backdrop-blur-xl border-b border-border z-[100] flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-text3 hover:text-text relative z-100 cursor-pointer">
-            <ChevronLeft size={20} />
-          </button>
-          <h1 className="text-sm font-bold text-text">{t('reports.title')}</h1>
-        </div>
-      </header>
+    <div className="min-h-screen bg-bg pb-8">
+      <TopBar />
 
       <main className="pt-20 px-4 space-y-6">
         {/* Period Filter */}
@@ -175,7 +186,7 @@ export default function ReportsPage() {
             <div className="flex flex-col gap-3 relative z-10">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-lg bg-surface2 flex items-center justify-center text-text2">
-                  <Clock size={12} />
+                  <ClockIcon size={12} />
                 </div>
                 <span className="text-[9px] font-black text-text3 uppercase tracking-[0.2em]">Moyenne</span>
               </div>
@@ -246,7 +257,6 @@ export default function ReportsPage() {
         </section>
       </main>
 
-      <BottomNav />
     </div>
   )
 }

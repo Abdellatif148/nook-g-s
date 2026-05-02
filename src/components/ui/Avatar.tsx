@@ -7,7 +7,7 @@ function cn(...inputs: ClassValue[]) {
 
 interface AvatarProps {
   name: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | number
   className?: string
 }
 
@@ -15,6 +15,7 @@ export const Avatar = ({ name, size = 'md', className }: AvatarProps) => {
   const getInitials = (name: string) => {
     return name
       .split(' ')
+      .filter(Boolean)
       .map((n) => n[0])
       .slice(0, 2)
       .join('')
@@ -31,22 +32,25 @@ export const Avatar = ({ name, size = 'md', className }: AvatarProps) => {
   const initials = getInitials(name)
 
   const sizes = {
-    sm: 'h-8 w-8 text-[10px]',
-    md: 'h-10 w-10 text-xs',
-    lg: 'h-16 w-16 text-lg',
+    sm: { className: 'h-8 w-8 text-[10px]' },
+    md: { className: 'h-10 w-10 text-xs' },
+    lg: { className: 'h-16 w-16 text-lg' },
   }
+
+  const isNumeric = typeof size === 'number'
 
   return (
     <div
       className={cn(
-        'flex items-center justify-center rounded-full font-bold border',
-        sizes[size],
+        'flex items-center justify-center rounded-full font-bold border shrink-0',
+        !isNumeric && sizes[size as keyof typeof sizes].className,
         className
       )}
       style={{
         backgroundColor: `${color}26`, // 15% opacity
         borderColor: `${color}4d`, // 30% opacity
         color: color,
+        ...(isNumeric ? { width: size, height: size, fontSize: (size as number) * 0.4 } : {})
       }}
     >
       {initials}

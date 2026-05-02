@@ -14,7 +14,7 @@ import { useTranslation, useLanguageStore } from '../i18n'
 import { useAudit } from '../hooks/useAudit'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
-import { BottomNav } from '../components/layout/BottomNav'
+import { TopBar } from '../components/layout/TopBar'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 
 export default function SettingsPage() {
@@ -242,10 +242,8 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-bg pb-24">
-      <header className="fixed top-0 left-0 right-0 h-14 bg-bg/90 backdrop-blur-xl border-b border-border z-[100] flex items-center justify-center px-4">
-        <h1 className="text-sm font-bold text-text">{t('settings.title')}</h1>
-      </header>
+    <div className="min-h-screen bg-bg pb-8">
+      <TopBar />
 
       <main className="pt-20 px-4 space-y-4">
         {/* Profile Card */}
@@ -349,7 +347,6 @@ export default function SettingsPage() {
         variant="danger"
       />
 
-      <BottomNav />
     </div>
   )
 }

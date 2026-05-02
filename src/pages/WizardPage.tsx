@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { 
-  Store, MapPin, Navigation, Phone, Armchair, Clock, Star, Timer, 
+  Store, MapPin, Navigation, Phone, Armchair, Clock as ClockIcon, Star, Timer, 
   User, CheckCircle, ArrowRight, Copy, Check, Loader2, Sliders, Lock
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -190,7 +190,7 @@ export default function WizardPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-text3 uppercase tracking-wider">Tarif standard (DH/h)</label>
-                  <Input type="number" step="0.5" icon={<Clock size={16} />} value={defaultRate} onChange={(e) => setDefaultRate(parseFloat(e.target.value) || 0)} />
+                  <Input type="number" step="0.5" icon={<ClockIcon size={16} />} value={defaultRate} onChange={(e) => setDefaultRate(parseFloat(e.target.value) || 0)} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-text3 uppercase tracking-wider">Minimum à payer (DH)</label>

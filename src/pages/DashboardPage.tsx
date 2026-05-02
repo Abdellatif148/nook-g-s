@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { 
-  PlusCircle, List, Users, BarChart2, Zap, Clock, 
+  PlusCircle, Plus, List, Users, BarChart2, Zap, Clock as ClockIcon, 
   RefreshCw, Activity, CheckCircle, AlertTriangle, 
-  Banknote, CreditCard, Gift, Wallet, ChevronRight, Loader2
+  Banknote, CreditCard, Gift, Wallet, ChevronRight, Loader2,
+  TrendingUp, ArrowUpRight
 } from 'lucide-react'
 import { TopBar } from '../components/layout/TopBar'
-import { BottomNav } from '../components/layout/BottomNav'
 import { SessionCard } from '../components/sessions/SessionCard'
 import { Button } from '../components/ui/Button'
 import { useAuthStore } from '../stores/authStore'
@@ -18,12 +18,13 @@ import { useTranslation } from '../i18n'
 import { supabase } from '../lib/supabase'
 import { Session } from '../types'
 import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import { db } from '../lib/offlineDB'
 
 export default function DashboardPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { cafe, type, staff } = useAuthStore()
+  const { cafe, type, staff, owner } = useAuthStore()
   const addToast = useUIStore((state) => state.addToast)
   const { activeSessions } = useSessionStore()
   const [lastSessions, setLastSessions] = useState<Session[]>([])
@@ -73,20 +74,24 @@ export default function DashboardPage() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     
+    // Load local data first for instant display
+    const localSessions = await db.sessions
+       .where('status').equals('completed')
+       .filter(s => new Date(s.ended_at!) >= today)
+       .reverse()
+       .sortBy('ended_at');
+    
+    if (localSessions.length > 0) {
+      const revenue = localSessions.reduce((acc, s) => acc + s.total_amount, 0)
+      setTodayStats({
+        revenue,
+        total: localSessions.length + activeSessions.length,
+        completed: localSessions.length
+      })
+      setLastSessions(localSessions.slice(0, 5))
+    }
+    
     if (!navigator.onLine) {
-        const localSessions = await db.sessions
-           .where('status').equals('completed')
-           .filter(s => new Date(s.ended_at!) >= today)
-           .reverse()
-           .sortBy('ended_at');
-        
-        const revenue = localSessions.reduce((acc, s) => acc + s.total_amount, 0)
-        setTodayStats({
-          revenue,
-          total: localSessions.length + activeSessions.length,
-          completed: localSessions.length
-        })
-        setLastSessions(localSessions.slice(0, 5))
         setIsRefreshing(false)
         return
     }
@@ -125,7 +130,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg pb-24">
+    <div className="min-h-screen bg-bg pb-8">
       <TopBar />
       
       <main className="pt-20 px-4 space-y-10">
@@ -173,12 +178,28 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-xs text-text3 font-bold uppercase tracking-wider">{format(new Date(), 'EEEE, d MMMM')}</div>
               </div>
-              <button 
-                onClick={loadStats}
-                className={`w-11 h-11 rounded-2xl glass flex items-center justify-center text-text2 hover:text-accent hover:border-accent/40 active:scale-90 transition-all ${isRefreshing ? 'animate-spin' : ''}`}
-              >
-                <RefreshCw size={18} />
-              </button>
+              <div className="flex flex-col gap-2 items-end">
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => {
+                      if (type === 'owner' || (staff?.permissions as any)?.clients) {
+                        navigate('/clients')
+                      } else {
+                        addToast("Accès refusé", 'error')
+                      }
+                    }}
+                    className="w-11 h-11 rounded-2xl glass flex items-center justify-center text-text2 hover:text-accent hover:border-accent/40 active:scale-90 transition-all"
+                  >
+                    <Users size={18} />
+                  </button>
+                  <button 
+                    onClick={loadStats}
+                    className={`w-11 h-11 rounded-2xl glass flex items-center justify-center text-text2 hover:text-accent hover:border-accent/40 active:scale-90 transition-all ${isRefreshing ? 'animate-spin' : ''}`}
+                  >
+                    <RefreshCw size={18} />
+                  </button>
+                </div>
+              </div>
             </div>
             
             <div className="mb-10">
@@ -216,69 +237,6 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* Quick Actions */}
-        <section className="space-y-4">
-          <h2 className="text-[11px] font-black text-text3 uppercase tracking-[0.2em]">{t('dashboard.quick_actions')}</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <button 
-              onClick={() => navigate('/sessions/new')}
-              className="group h-24 flex flex-col items-center justify-center gap-2 rounded-2xl bg-accent-glow border border-accent-border/30 hover:border-accent hover:bg-accent/10 transition-all active:scale-95 shadow-lg shadow-accent/5"
-            >
-              <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <PlusCircle size={24} className="text-accent2" />
-              </div>
-              <span className="text-[11px] font-bold text-accent2 uppercase tracking-wide">{t('dashboard.start_session') || 'Session'}</span>
-            </button>
-            <button 
-              onClick={() => navigate('/sessions')}
-              className="group h-24 flex flex-col items-center justify-center gap-2 rounded-2xl glass border-white/5 hover:border-white/10 transition-all active:scale-95"
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <List size={24} className="text-text2" />
-              </div>
-              <span className="text-[11px] font-bold text-text2 uppercase tracking-wide">{t('dashboard.history') || 'Historique'}</span>
-            </button>
-            <button 
-              onClick={() => {
-                if (type === 'owner' || (staff?.permissions as any)?.clients) {
-                  navigate('/clients')
-                } else {
-                  addToast("Accès refusé", 'error')
-                }
-              }}
-              className={`group h-24 flex flex-col items-center justify-center gap-2 rounded-2xl border transition-all active:scale-95 ${
-                type === 'owner' || (staff?.permissions as any)?.clients 
-                  ? 'glass border-white/5 hover:border-white/10' 
-                  : 'bg-surface/50 border-transparent opacity-40 grayscale pointer-events-none'
-              }`}
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Users size={24} className="text-text2" />
-              </div>
-              <span className="text-[11px] font-bold text-text2 uppercase tracking-wide">{t('dashboard.clients')}</span>
-            </button>
-            <button 
-              onClick={() => {
-                if (type === 'owner' || (staff?.permissions as any)?.reports) {
-                  navigate('/reports')
-                } else {
-                  addToast("Accès refusé", 'error')
-                }
-              }}
-              className={`group h-24 flex flex-col items-center justify-center gap-2 rounded-2xl border transition-all active:scale-95 ${
-                type === 'owner' || (staff?.permissions as any)?.reports 
-                  ? 'glass border-white/5 hover:border-white/10' 
-                  : 'bg-surface/50 border-transparent opacity-40 grayscale pointer-events-none'
-              }`}
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <BarChart2 size={24} className="text-text2" />
-              </div>
-              <span className="text-[11px] font-bold text-text2 uppercase tracking-wide">{t('reports.title') || 'Rapports'}</span>
-            </button>
-          </div>
-        </section>
-
         {/* Active Sessions */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
@@ -286,11 +244,9 @@ export default function DashboardPage() {
               {t('dashboard.active_sessions')}
               <span className="px-2 py-0.5 bg-accent-glow text-accent2 rounded-full text-[10px]">{activeSessions.length}</span>
             </h2>
-            {activeSessions.length > 0 && (
-              <Link to="/sessions/new" className="text-xs font-semibold text-accent hover:underline">
-                + {t('dashboard.start_session')}
-              </Link>
-            )}
+            <Link to="/sessions" className="text-xs font-semibold text-text2 hover:text-text hover:underline">
+              {t('dashboard.history') || 'Historique'} 
+            </Link>
           </div>
 
           {activeSessions.length === 0 ? (
@@ -301,7 +257,7 @@ export default function DashboardPage() {
             >
               <div className="absolute inset-0 bg-accent/2 blur-[80px] rounded-full pointer-events-none" />
               <div className="w-20 h-20 bg-surface/80 rounded-[24px] flex items-center justify-center mb-6 border border-white/5 shadow-2xl relative z-10">
-                <Clock size={32} className="text-text3 opacity-50" />
+                <ClockIcon size={32} className="text-text3 opacity-50" />
               </div>
               <p className="text-base text-text font-bold mb-2 relative z-10">{t('dashboard.no_active_sessions')}</p>
               <p className="text-xs text-text3 font-medium mb-6 relative z-10">Aucun client n'est en session pour le moment.</p>
@@ -332,7 +288,7 @@ export default function DashboardPage() {
 
         {/* Last Sessions */}
         {lastSessions.length > 0 && (
-          <section className="space-y-4">
+          <section className="space-y-4 pb-10">
             <h2 className="text-[11px] font-black text-text3 uppercase tracking-[0.2em]">{t('dashboard.last_sessions')}</h2>
             <div className="glass border-white/5 rounded-3xl overflow-hidden divide-y divide-white/5">
               {lastSessions.map((session) => (
@@ -350,7 +306,7 @@ export default function DashboardPage() {
                         Place {session.seat_number} — {session.customer_name}
                       </div>
                       <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-surface2 rounded-full text-[9px] font-bold text-text3 uppercase tracking-wider">
-                        <Clock size={10} />
+                        <ClockIcon size={10} />
                         {session.duration_minutes} min
                       </div>
                     </div>
@@ -373,7 +329,15 @@ export default function DashboardPage() {
         )}
       </main>
 
-      <BottomNav />
+      {/* Floating Action Button Instead of BottomNav */}
+      <button
+        onClick={() => navigate('/sessions/new')}
+        className="fixed bottom-[24px] right-6 w-14 h-14 bg-gradient-to-br from-accent to-accent2 hover:opacity-90 text-white rounded-full flex items-center justify-center shadow-[0_4px_24px_rgba(249,115,22,0.4)] z-50 transition-transform active:scale-90"
+      >
+        <Plus size={28} />
+      </button>
+
+      {/* <BottomNav /> hidden per sketch */}
     </div>
   )
 }

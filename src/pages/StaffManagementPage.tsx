@@ -60,9 +60,13 @@ export default function StaffManagementPage() {
     if (!cafe) return
     setIsLoading(true)
 
+    const localStaff = await db.staff.toArray()
+    if (localStaff.length > 0) {
+      setStaffList(localStaff.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+      setIsLoading(false)
+    }
+
     if (!navigator.onLine) {
-        const localStaff = await db.staff.toArray()
-        setStaffList(localStaff.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
         setIsLoading(false)
         return
     }
@@ -424,7 +428,7 @@ export default function StaffManagementPage() {
               </label>
               
               <div className="flex flex-col items-center gap-6">
-                <PINDots count={pin === ' ' ? 0 : pin.length} />
+                <PINDots length={pin === ' ' ? 0 : pin.length} />
                 
                 <div className="w-full max-w-[280px]">
                   <NumPad 

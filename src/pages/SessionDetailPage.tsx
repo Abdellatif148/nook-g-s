@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { 
-  ChevronLeft, MoreVertical, Clock, Gauge, AlertCircle, 
+  ChevronLeft, MoreVertical, Clock as ClockIcon, Gauge, AlertCircle, 
   ShoppingBag, Plus, StopCircle, Edit2, Trash2, CheckCircle,
   Banknote, CreditCard, Wallet, Gift, Loader2, Phone, FileText
 } from 'lucide-react'
@@ -47,13 +47,15 @@ export default function SessionDetailPage() {
     const loadSession = async () => {
       if (!id) return
       
+      const localSess = await db.sessions.get(id);
+      if (localSess) {
+         setSession(localSess);
+         setIsLoading(false);
+      }
+      
       if (!navigator.onLine) {
-        let localSess = await db.sessions.get(id);
-        if (localSess) {
-           setSession(localSess);
-           setIsLoading(false);
-           return;
-        }
+         setIsLoading(false);
+         return;
       }
 
       const { data, error } = await supabase
@@ -345,7 +347,7 @@ export default function SessionDetailPage() {
           
           <div className="flex gap-6">
             <div className="flex items-center gap-2 text-text3 text-[10px] font-bold uppercase tracking-wider">
-              <Clock size={12} className="text-accent" />
+              <ClockIcon size={12} className="text-accent" />
               {format(new Date(session.started_at), 'HH:mm')}
             </div>
             <div className="flex items-center gap-2 text-text3 text-[10px] font-bold uppercase tracking-wider">

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { 
   ChevronLeft, Search, Filter, Banknote, CreditCard, 
-  Wallet, Gift, Clock, Calendar, ChevronRight, Check
+  Wallet, Gift, Clock as ClockIcon, Calendar, ChevronRight, Check
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { db } from '../lib/offlineDB'
@@ -13,7 +13,6 @@ import { Session } from '../types'
 import { format, isToday, isYesterday, startOfDay, startOfWeek, startOfMonth } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { TopBar } from '../components/layout/TopBar'
-import { BottomNav } from '../components/layout/BottomNav'
 import { Input } from '../components/ui/Input'
 import { BottomSheet } from '../components/ui/BottomSheet'
 
@@ -50,31 +49,36 @@ export default function SessionHistoryPage() {
         ltDate.setDate(ltDate.getDate() + 1);
       }
 
+      // Load local data for instant display
+      const localSessions = await db.sessions.toArray();
+      let filtered = localSessions;
+      
+      if (statusFilter !== 'all') {
+         filtered = filtered.filter(s => s.status === statusFilter);
+      }
+      if (paymentFilter !== 'all') {
+         filtered = filtered.filter(s => s.payment_method === paymentFilter);
+      }
+      
+      if (gteDate) {
+          filtered = filtered.filter(s => new Date(s.started_at) >= gteDate!);
+      }
+      if (ltDate) {
+          filtered = filtered.filter(s => new Date(s.started_at) < ltDate!);
+      }
+      
+      filtered.sort((a,b) => {
+          const tA = a.ended_at ? new Date(a.ended_at).getTime() : new Date(a.started_at).getTime();
+          const tB = b.ended_at ? new Date(b.ended_at).getTime() : new Date(b.started_at).getTime();
+          return tB - tA;
+      });
+      
+      if (filtered.length > 0) {
+        setSessions(filtered);
+        setIsLoading(false);
+      }
+
       if (!navigator.onLine) {
-         const localSessions = await db.sessions.toArray();
-         let filtered = localSessions;
-         
-         if (statusFilter !== 'all') {
-            filtered = filtered.filter(s => s.status === statusFilter);
-         }
-         if (paymentFilter !== 'all') {
-            filtered = filtered.filter(s => s.payment_method === paymentFilter);
-         }
-         
-         if (gteDate) {
-             filtered = filtered.filter(s => new Date(s.started_at) >= gteDate!);
-         }
-         if (ltDate) {
-             filtered = filtered.filter(s => new Date(s.started_at) < ltDate!);
-         }
-         
-         filtered.sort((a,b) => {
-             const tA = a.ended_at ? new Date(a.ended_at).getTime() : new Date(a.started_at).getTime();
-             const tB = b.ended_at ? new Date(b.ended_at).getTime() : new Date(b.started_at).getTime();
-             return tB - tA;
-         });
-         
-         setSessions(filtered);
          setIsLoading(false);
          return;
       }
@@ -139,7 +143,7 @@ export default function SessionHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg pb-24">
+    <div className="min-h-screen bg-bg pb-8">
       <TopBar />
 
       <main className="pt-20 px-4 space-y-6">
@@ -216,8 +220,35 @@ export default function SessionHistoryPage() {
 
 
         <div className="space-y-8">
-          {Object.entries(groupedSessions).map(([date, daySessions]: [string, any]) => (
-            <div key={date} className="space-y-3">
+          {isLoading && sessions.length === 0 ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <div className="w-24 h-3 bg-white/5 rounded-full animate-pulse" />
+                <div className="w-16 h-3 bg-white/5 rounded-full animate-pulse" />
+              </div>
+              <div className="bg-surface border border-white/5 rounded-2xl overflow-hidden divide-y divide-white/5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-3 bg-white/5 rounded-full animate-pulse" />
+                      <div className="space-y-2">
+                        <div className="w-32 h-3 bg-white/10 rounded-full animate-pulse" />
+                        <div className="w-20 h-2 bg-white/5 rounded-full animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="w-12 h-4 bg-white/10 rounded-full animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : Object.keys(groupedSessions).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-text3">
+              <Calendar size={40} className="mb-4 opacity-20" />
+              <p className="text-sm font-medium">{t('reports.no_sessions')}</p>
+            </div>
+          ) : (
+            Object.entries(groupedSessions).map(([date, daySessions]: [string, any]) => (
+              <div key={date} className="space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-xs font-bold text-text3 uppercase tracking-widest">{formatDateHeader(date)}</h3>
                 <span className="text-xs font-mono font-bold text-text3">
@@ -241,7 +272,7 @@ export default function SessionHistoryPage() {
                           Place {session.seat_number} — {session.customer_name}
                         </div>
                         <div className="flex items-center gap-2 text-[10px] text-text3">
-                          <Clock size={10} />
+                          <ClockIcon size={10} />
                           {session.duration_minutes || '- '} min
                           {session.status === 'active' && (
                             <span className="px-1.5 py-0.5 rounded bg-accent-glow text-accent2 border border-accent-border font-bold">Actif</span>
@@ -267,19 +298,11 @@ export default function SessionHistoryPage() {
                 ))}
               </div>
             </div>
-          ))}
-
-          {filteredSessions.length === 0 && !isLoading && (
-            <div className="flex flex-col items-center justify-center py-12 text-text3">
-              <Calendar size={40} className="mb-4 opacity-20" />
-              <p className="text-sm font-medium">{t('reports.no_sessions')}</p>
-            </div>
+            ))
           )}
         </div>
       </main>
-
-      <BottomNav />
-
+      
       <BottomSheet
         isOpen={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}

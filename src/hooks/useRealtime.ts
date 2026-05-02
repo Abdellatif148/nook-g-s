@@ -13,12 +13,17 @@ export const useRealtime = () => {
 
     // Initial load
     const loadSessions = async () => {
+      // Show offline active sessions instantly
+      const localSessions = await db.sessions
+          .where('status').equals('active')
+          .reverse()
+          .sortBy('started_at');
+      
+      if (localSessions.length > 0) {
+        setActiveSessions(localSessions);
+      }
+
       if (!navigator.onLine) {
-         const localSessions = await db.sessions
-             .where('status').equals('active')
-             .reverse()
-             .sortBy('started_at');
-         setActiveSessions(localSessions);
          return;
       }
       

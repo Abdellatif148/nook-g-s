@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { X, User, Phone, Armchair, Clock, Zap, Sliders, Play, Loader2, MessageSquare, ChevronDown, UserPlus, ChevronLeft, ShoppingBag } from 'lucide-react'
+import { X, User, Phone, Armchair, Clock as ClockIcon, Zap, Sliders, Play, Loader2, MessageSquare, ChevronDown, UserPlus, ChevronLeft, ShoppingBag } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
@@ -224,7 +224,7 @@ export default function NewSessionPage() {
             className="w-full p-6 bg-surface border border-border hover:border-accent hover:bg-accent-glow hover:shadow-[0_4px_24px_rgba(249,115,22,0.15)] rounded-2xl flex flex-col items-center text-center transition-all duration-300 active:scale-95 group"
           >
             <div className="w-16 h-16 rounded-full bg-surface2 border border-border flex items-center justify-center text-text3 group-hover:text-accent group-hover:bg-accent/10 group-hover:border-accent/20 transition-all duration-300 mb-4 group-hover:scale-110">
-              <Clock size={32} />
+              <ClockIcon size={32} />
             </div>
             <h3 className="text-lg font-bold text-text mb-2 tracking-tight">Tarification au Temps</h3>
             <p className="text-sm text-text3 group-hover:text-text2 transition-colors">Idéal pour les clients qui s'installent pour travailler. (Tarif horaire)</p>

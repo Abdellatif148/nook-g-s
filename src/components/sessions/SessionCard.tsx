@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Armchair, StopCircle, Zap, AlertCircle, Clock as ClockIcon, FileText } from 'lucide-react'
+import { Armchair, StopCircle, Zap, AlertCircle, FileText } from 'lucide-react'
 import { Session } from '../../types'
 import { useTranslation } from '../../i18n'
 import { format } from 'date-fns'

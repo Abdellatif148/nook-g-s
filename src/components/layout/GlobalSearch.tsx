@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, X, User, Clock, ChevronRight } from 'lucide-react'
+import { Search, X, User, Clock as ClockIcon, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
@@ -48,7 +48,7 @@ export const GlobalSearch = () => {
           .from('sessions')
           .select('*')
           .eq('cafe_id', cafe.id)
-          .or(`customer_name.ilike.%${safeQuery}%${isNumber ? `,seat_number.eq.${parseInt(query)}` : ''}`)
+          .or(`customer_name.ilike.%${safeQuery}%,customer_phone.ilike.%${safeQuery}%${isNumber ? `,seat_number.eq.${parseInt(query)}` : ''}`)
           .limit(5)
       ])
 
@@ -152,15 +152,18 @@ export const GlobalSearch = () => {
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-surface2 flex items-center justify-center text-text2">
-                            <Clock size={18} />
+                            <ClockIcon size={18} />
                           </div>
                           <div>
                             <div className="text-sm font-bold text-text">
                               Place {session.seat_number} — {session.customer_name}
                             </div>
-                            <div className="text-xs text-text3">
-                              {session.status === 'active' ? t('dashboard.active') : t('dashboard.closed')} • {session.total_amount.toFixed(2)} DH
+                            <div className="text-xs text-text3 flex items-center gap-1">
+                              <span>{session.status === 'active' ? t('dashboard.active') : t('dashboard.closed')}</span>
+                              <span>•</span>
+                              <span>{session.total_amount?.toFixed(2) || '0.00'} DH</span>
                             </div>
+                            {session.customer_phone && <div className="text-xs text-text3 mt-0.5">{session.customer_phone}</div>}
                           </div>
                         </div>
                         <ChevronRight size={16} className="text-text3" />
