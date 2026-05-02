@@ -13,6 +13,7 @@ import { Input } from '../components/ui/Input'
 import { Session, Product } from '../types'
 import { format } from 'date-fns'
 import { queueMutation } from '../lib/offlineSync'
+import { db } from '../lib/offlineDB'
 
 export default function NewSessionPage() {
   const { t } = useTranslation()
@@ -20,7 +21,7 @@ export default function NewSessionPage() {
   const location = useLocation()
   const state = location.state as { clientName?: string, clientPhone?: string, clientId?: string } | null
 
-  const { cafe, staff, type } = useAuthStore()
+  const { cafe, staff, type, owner } = useAuthStore()
   const { activeSessions } = useSessionStore()
   const addToast = useUIStore((state) => state.addToast)
   const { logAction } = useAudit()
@@ -41,6 +42,14 @@ export default function NewSessionPage() {
   useEffect(() => {
     const loadRecent = async () => {
       if (!cafe) return
+      
+      if (!navigator.onLine) {
+        const sessions = await db.sessions.toArray();
+        const unique = Array.from(new Set(sessions.map(s => s.customer_name))).slice(0, 6);
+        setRecentCustomers(unique);
+        return;
+      }
+      
       const { data } = await supabase
         .from('sessions')
         .select('customer_name')
@@ -57,13 +66,26 @@ export default function NewSessionPage() {
 
     const loadProducts = async () => {
       if (!cafe) return
+      
+      if (!navigator.onLine) {
+         const localProducts = await db.products.where('active').equals(1).toArray();
+         // Wait, Dexie boolean might be true/false or 1/0. 
+         // Let's just fetch all and filter in memory to be safe:
+         const allProds = await db.products.toArray();
+         setProducts(allProds.filter(p => p.active).sort((a,b) => (a.sort_order || 0) - (b.sort_order || 0)));
+         return;
+      }
+
       const { data } = await supabase
         .from('products')
         .select('*')
         .eq('cafe_id', cafe.id)
         .eq('active', true)
         .order('sort_order')
-      if (data) setProducts(data)
+      if (data) {
+        setProducts(data)
+        db.products.bulkPut(data)
+      }
     }
     loadProducts()
   }, [cafe])
@@ -134,6 +156,7 @@ export default function NewSessionPage() {
       }
 
       const sessionPayload = {
+        id: crypto.randomUUID(),
         cafe_id: cafe.id,
         staff_id: type === 'staff' ? staff?.id : null,
         client_account_id: finalClientId,
@@ -173,7 +196,7 @@ export default function NewSessionPage() {
   const occupiedSeats = activeSessions.map(s => s.seat_number)
 
   if (sessionMode === null) {
-    const activeUserName = authType === 'owner' ? (owner?.user_metadata?.full_name || 'Propriétaire') : staff?.name
+    const activeUserName = type === 'owner' ? (owner?.user_metadata?.full_name || 'Propriétaire') : staff?.name
     
     return (
       <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-6 relative">
@@ -349,7 +372,7 @@ export default function NewSessionPage() {
           </div>
         </section>
 
-        {/* Rate section removed */}
+
 
         {sessionMode === 'consumption' && (
           <section className="space-y-4">

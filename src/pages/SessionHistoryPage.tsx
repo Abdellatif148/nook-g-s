@@ -6,6 +6,7 @@ import {
   Wallet, Gift, Clock, Calendar, ChevronRight, Check
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/offlineDB'
 import { useAuthStore } from '../stores/authStore'
 import { useTranslation } from '../i18n'
 import { Session } from '../types'
@@ -34,6 +35,49 @@ export default function SessionHistoryPage() {
     const loadSessions = async () => {
       if (!cafe) return
       setIsLoading(true)
+
+      let gteDate: Date | null = null;
+      let ltDate: Date | null = null;
+      if (period === 'today') {
+        gteDate = startOfDay(new Date());
+      } else if (period === 'week') {
+        gteDate = startOfWeek(new Date(), { weekStartsOn: 1 });
+      } else if (period === 'month') {
+        gteDate = startOfMonth(new Date());
+      } else if (period === 'custom' && customDate) {
+        gteDate = startOfDay(new Date(customDate));
+        ltDate = new Date(gteDate);
+        ltDate.setDate(ltDate.getDate() + 1);
+      }
+
+      if (!navigator.onLine) {
+         const localSessions = await db.sessions.toArray();
+         let filtered = localSessions;
+         
+         if (statusFilter !== 'all') {
+            filtered = filtered.filter(s => s.status === statusFilter);
+         }
+         if (paymentFilter !== 'all') {
+            filtered = filtered.filter(s => s.payment_method === paymentFilter);
+         }
+         
+         if (gteDate) {
+             filtered = filtered.filter(s => new Date(s.started_at) >= gteDate!);
+         }
+         if (ltDate) {
+             filtered = filtered.filter(s => new Date(s.started_at) < ltDate!);
+         }
+         
+         filtered.sort((a,b) => {
+             const tA = a.ended_at ? new Date(a.ended_at).getTime() : new Date(a.started_at).getTime();
+             const tB = b.ended_at ? new Date(b.ended_at).getTime() : new Date(b.started_at).getTime();
+             return tB - tA;
+         });
+         
+         setSessions(filtered);
+         setIsLoading(false);
+         return;
+      }
       
       let query = supabase
         .from('sessions')
@@ -51,21 +95,14 @@ export default function SessionHistoryPage() {
         query = query.eq('payment_method', paymentFilter)
       }
       
-      if (period === 'today') {
-        query = query.gte('started_at', startOfDay(new Date()).toISOString())
-      } else if (period === 'week') {
-        query = query.gte('started_at', startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString())
-      } else if (period === 'month') {
-        query = query.gte('started_at', startOfMonth(new Date()).toISOString())
-      } else if (period === 'custom' && customDate) {
-        const start = startOfDay(new Date(customDate))
-        const end = new Date(start)
-        end.setDate(end.getDate() + 1)
-        query = query.gte('started_at', start.toISOString()).lt('started_at', end.toISOString())
-      }
+      if (gteDate) query = query.gte('started_at', gteDate.toISOString())
+      if (ltDate) query = query.lt('started_at', ltDate.toISOString())
 
       const { data } = await query as any
-      if (data) setSessions(data)
+      if (data) {
+          setSessions(data)
+          db.sessions.bulkPut(data)
+      }
       setIsLoading(false)
     }
 
@@ -251,7 +288,7 @@ export default function SessionHistoryPage() {
         <div className="space-y-6">
           {/* Period Filter */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold text-text3 uppercase tracking-widest">Par date</h3>
+            <h3 className="text-xs font-bold text-text3 uppercase tracking-widest">{t('common.filters')}</h3>
             <div className="flex flex-wrap gap-2">
               {[
                 { id: 'today', label: t('common.today') },
@@ -349,7 +386,7 @@ export default function SessionHistoryPage() {
             onClick={() => setIsFilterOpen(false)}
             className="w-full h-12 bg-gradient-to-br from-accent to-[#ea6b0a] text-white font-bold rounded-xl shadow-[0_2px_12px_rgba(249,115,22,0.25)] mt-4 active:scale-[0.98] transition-all"
           >
-            Apply
+            {t('common.apply')}
           </button>
         </div>
       </BottomSheet>

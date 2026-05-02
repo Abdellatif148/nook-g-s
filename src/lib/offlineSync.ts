@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { useSessionStore } from '../stores/sessionStore';
 import { useAuthStore } from '../stores/authStore';
 import { useUIStore } from '../stores/uiStore';
+import { db } from './offlineDB';
 
 export interface SyncOperation {
   id: string;
@@ -18,6 +19,28 @@ const getQueue = (): SyncOperation[] => {
 
 const saveQueue = (queue: SyncOperation[]) => {
   localStorage.setItem('nook-sync-queue', JSON.stringify(queue));
+};
+
+export const syncDataToOfflineDB = async (cafeId: string) => {
+  if (!navigator.onLine || !cafeId) return;
+
+  try {
+    const [productsRes, clientsRes, staffRes, sessionsRes] = await Promise.all([
+      supabase.from('products').select('*').eq('cafe_id', cafeId),
+      supabase.from('client_accounts').select('*').eq('cafe_id', cafeId),
+      supabase.from('staff').select('*').eq('cafe_id', cafeId),
+      supabase.from('sessions').select('*').eq('cafe_id', cafeId)
+        .gte('started_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+    ]);
+
+    if (productsRes.data) await db.products.bulkPut(productsRes.data);
+    if (clientsRes.data) await db.clients.bulkPut(clientsRes.data);
+    if (staffRes.data) await db.staff.bulkPut(staffRes.data);
+    if (sessionsRes.data) await db.sessions.bulkPut(sessionsRes.data);
+
+  } catch (err) {
+    console.error("Failed to sync offline DB", err);
+  }
 };
 
 export const queueMutation = async (
@@ -63,12 +86,34 @@ export const queueMutation = async (
 
   // Optimistic update
   if (table === 'sessions') {
-    const { addSession, updateSession } = useSessionStore.getState();
+    const { addSession, updateSession, removeSession } = useSessionStore.getState();
     if (action === 'insert') {
       addSession(optimisticData || { ...payload, id: opId });
     } else if (action === 'update') {
-      updateSession(optimisticData || payload);
+      if ((optimisticData || payload).status !== 'active') {
+         removeSession(payload.id);
+      } else {
+         updateSession(optimisticData || payload);
+      }
     }
+  }
+
+  // Save to OfflineDB for local reads immediately
+  try {
+     const dataToStore = optimisticData || { ...payload, id: opId };
+     if (action === 'insert' || action === 'update') {
+        if (table === 'products') await db.products.put(dataToStore);
+        if (table === 'client_accounts') await db.clients.put(dataToStore);
+        if (table === 'staff') await db.staff.put(dataToStore);
+        if (table === 'sessions') await db.sessions.put(dataToStore);
+     } else if (action === 'delete') {
+        if (table === 'products') await db.products.delete(payload.id);
+        if (table === 'client_accounts') await db.clients.delete(payload.id);
+        if (table === 'staff') await db.staff.delete(payload.id);
+        if (table === 'sessions') await db.sessions.delete(payload.id);
+     }
+  } catch(e) {
+     console.error("Could not optimistically write to OfflineDB", e);
   }
 
   useUIStore.getState().addToast("Sauvegardé hors ligne (sync lors de la reconnexion)", "info");
@@ -89,14 +134,8 @@ export const processSyncQueue = async () => {
     try {
       let query = supabase.from(op.table);
       
-      // We might need to handle mapped generated UUIDs, but for our simple PWA we'll 
-      // rely on supabase auto generating for inserts if ID is missing.
-      // Actually, if we optimistic updated, we might have assigned a local UUID!
-      // Here we just re-run the op payload.
       let payload = { ...op.payload };
-      if (op.action === 'insert' && payload.id && payload.id.length > 36) { // if local fake ID
-         delete payload.id;
-      }
+      // We explicitly keep the UUID so it matches the client-side generated one
 
       if (op.action === 'insert') {
         await query.insert(payload);
@@ -104,6 +143,19 @@ export const processSyncQueue = async () => {
         await query.update(payload).eq('id', payload.id);
       } else if (op.action === 'delete') {
         await query.delete().eq('id', payload.id);
+      }
+
+      // Sync offline DB immediately for local consistancy
+      if (op.action === 'insert' || op.action === 'update') {
+         if (op.table === 'products') await db.products.put(payload);
+         if (op.table === 'client_accounts') await db.clients.put(payload);
+         if (op.table === 'staff') await db.staff.put(payload);
+         if (op.table === 'sessions') await db.sessions.put(payload);
+      } else if (op.action === 'delete') {
+         if (op.table === 'products') await db.products.delete(payload.id);
+         if (op.table === 'client_accounts') await db.clients.delete(payload.id);
+         if (op.table === 'staff') await db.staff.delete(payload.id);
+         if (op.table === 'sessions') await db.sessions.delete(payload.id);
       }
 
       // Remove from queue upon success
@@ -118,8 +170,18 @@ export const processSyncQueue = async () => {
   if (!hasErrors && queue.length > 0) {
     useUIStore.getState().addToast("Données synchronisées avec le serveur", "success");
   }
+
+  // Optionnally refresh full offline db when queue is fully cleared
+  const state = useAuthStore.getState();
+  if (state.cafe) {
+     syncDataToOfflineDB(state.cafe.id);
+  }
 };
 
 window.addEventListener('online', () => {
   processSyncQueue();
+  const state = useAuthStore.getState();
+  if (state.cafe) {
+     syncDataToOfflineDB(state.cafe.id);
+  }
 });

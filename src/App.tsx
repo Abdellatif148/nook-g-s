@@ -8,6 +8,7 @@ import { useUIStore } from './stores/uiStore'
 import { processSyncQueue } from './lib/offlineSync'
 import { Loader2 } from 'lucide-react'
 import { ToastContainer } from './components/ui/Toast'
+import { OfflineBanner } from './components/ui/OfflineBanner'
 
 // Pages (to be created)
 import WelcomePage from './pages/WelcomePage'
@@ -276,6 +277,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-bg text-text selection:bg-accent/30">
+        <OfflineBanner />
         <AppRoutes />
         <ToastContainer />
       </div>

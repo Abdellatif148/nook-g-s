@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'motion/react'
 import { 
   Store, DollarSign, Bell, ShoppingBag, Users, 
   Key, Globe, User, LogOut, ChevronDown, 
-  ChevronRight, Copy, RefreshCw, Check, BarChart2
+  ChevronRight, Copy, RefreshCw, Check, BarChart2,
+  Trash2
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
@@ -27,6 +28,7 @@ export default function SettingsPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showLogout, setShowLogout] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [logoPreview, setLogoPreview] = useState<string | null>(localStorage.getItem('nook_logo'))
 
   // Cafe Info Form
   const [cafeName, setCafeName] = useState(cafe?.name || '')
@@ -105,11 +107,73 @@ export default function SettingsPage() {
     navigate('/login')
   }
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        if (ev.target?.result) {
+          const resultString = ev.target.result as string
+          localStorage.setItem('nook_logo', resultString)
+          setLogoPreview(resultString)
+          addToast("Logo enregistré", "success")
+        }
+      }
+      reader.readAsDataURL(e.target.files[0])
+    }
+  }
+
+  const handleRemoveLogo = () => {
+    localStorage.removeItem('nook_logo')
+    setLogoPreview(null)
+    addToast("Logo supprimé", "info")
+  }
+
   const hasReportsPermission = isOwner || (staff?.permissions as any)?.reports
 
   const sections = [
     { id: 'cafe', icon: Store, title: t('settings.my_cafe'), content: (
       <div className="space-y-4 pt-2">
+        <label className="block space-y-2">
+          <span className="text-xs font-bold text-text3 uppercase">Logo (.png/.jpg)</span>
+          <div className="flex flex-wrap items-center gap-4">
+             {logoPreview ? (
+                <>
+                  <img src={logoPreview} alt="Logo" className="w-16 h-16 object-contain bg-white rounded-lg p-1.5 border border-border" />
+                  <div className="flex flex-col gap-2">
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                        onChange={handleLogoUpload} 
+                      />
+                      <Button variant="ghost" size="sm" className="pointer-events-none">
+                        Changer le logo
+                      </Button>
+                    </div>
+                    <Button variant="danger" size="sm" onClick={handleRemoveLogo}>
+                      <Trash2 size={14} className="mr-2" /> Supprimer
+                    </Button>
+                  </div>
+                </>
+             ) : (
+                <>
+                  <div className="w-16 h-16 bg-surface2 border border-border border-dashed rounded-lg flex items-center justify-center text-text3 text-xs">Aucun</div>
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                      onChange={handleLogoUpload} 
+                    />
+                    <Button size="sm" className="pointer-events-none">
+                      Télécharger un logo
+                    </Button>
+                  </div>
+                </>
+             )}
+          </div>
+        </label>
         <Input label="Nom du café" value={cafeName} onChange={(e) => setCafeName(e.target.value)} />
         <Input label="Téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} />
         <Button onClick={handleSaveCafe} isLoading={isSaving} className="w-full">Enregistrer</Button>
@@ -185,52 +249,67 @@ export default function SettingsPage() {
 
       <main className="pt-20 px-4 space-y-4">
         {/* Profile Card */}
-        <div className="bg-surface border border-border rounded-2xl p-4 flex flex-col gap-4 mb-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass border-white/5 rounded-3xl p-6 flex flex-col gap-5 mb-8 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
+          
           {/* Cafe Info */}
-          <div className="flex items-center gap-4 pb-4 border-b border-border">
-            <div className="w-14 h-14 bg-bg border border-border rounded-xl flex items-center justify-center shrink-0 shadow-sm relative overflow-hidden">
+          <div className="flex items-center gap-5 pb-5 border-b border-white/5 relative z-10">
+            <div className="w-16 h-16 bg-surface/80 border border-white/5 rounded-2xl flex items-center justify-center shrink-0 shadow-2xl relative overflow-hidden">
               <div className="absolute inset-0 bg-accent/5" />
-              <img src="/favicon.svg" alt="Nook OS" className="w-8 h-8 drop-shadow-md relative z-10" />
+              <img src={logoPreview || "/favicon.svg"} alt="Logo" className="w-10 h-10 object-contain drop-shadow-md relative z-10" />
             </div>
             <div>
-              <div className="text-base font-bold text-text">{cafe?.name || "Mon Café"}</div>
-              {cafe?.phone && <div className="text-xs text-text3 font-medium mt-1">{cafe?.phone}</div>}
+              <div className="text-lg font-bold text-text tracking-tight">{cafe?.name || "Mon Café"}</div>
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                <span className="text-[10px] font-black text-text3 uppercase tracking-[0.2em]">Système Actif</span>
+              </div>
             </div>
           </div>
 
           {/* User Info */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-surface2 border border-border rounded-full flex items-center justify-center text-accent text-sm font-bold shrink-0">
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 bg-accent/10 border border-accent/20 rounded-2xl flex items-center justify-center text-accent text-sm font-black shrink-0 shadow-lg shadow-accent/5">
               {type === 'owner' ? (owner?.user_metadata?.full_name?.[0] || 'O') : (staff?.name?.[0] || 'S')}
             </div>
             <div>
+              <div className="text-[11px] font-black text-text3 uppercase tracking-[0.2em] mb-0.5">{type === 'owner' ? 'Propriétaire' : 'Staff'}</div>
               <div className="text-sm font-bold text-text">
                 {type === 'owner' ? (owner?.user_metadata?.full_name || t('auth.owner')) : staff?.name}
               </div>
-              <div className="text-xs text-text3 mt-0.5">
-                {type === 'owner' ? owner?.email : 'Membre du staff'}
-              </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Settings Sections */}
-        <div className="space-y-2">
+        <div className="space-y-3">
           {sections.filter(Boolean).map((section: any) => (
-            <div key={section.id} className="bg-surface border border-border rounded-2xl overflow-hidden">
+            <motion.div 
+              key={section.id} 
+              layout
+              className={`glass border-white/5 rounded-3xl overflow-hidden transition-all duration-300 ${expanded === section.id ? 'bg-white/[0.02]' : ''}`}
+            >
               <button
                 onClick={() => section.onClick ? section.onClick() : setExpanded(expanded === section.id ? null : section.id)}
-                className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                className="w-full p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors group"
               >
-                <div className="flex items-center gap-3">
-                  <section.icon size={18} className="text-text3" />
-                  <span className="text-sm font-semibold text-text">{section.title}</span>
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${expanded === section.id ? 'bg-accent/10 text-accent' : 'bg-white/5 text-text3 group-hover:text-text group-hover:bg-white/10'}`}>
+                    <section.icon size={20} />
+                  </div>
+                  <span className={`text-[13px] font-bold tracking-wide transition-colors ${expanded === section.id ? 'text-text' : 'text-text2 group-hover:text-text'}`}>{section.title}</span>
                 </div>
-                {section.onClick ? (
-                  <ChevronRight size={18} className="text-text3" />
-                ) : (
-                  <ChevronDown size={18} className={`text-text3 transition-transform ${expanded === section.id ? 'rotate-180' : ''}`} />
-                )}
+                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-text3 group-hover:text-text">
+                  {section.onClick ? (
+                    <ChevronRight size={18} />
+                  ) : (
+                    <ChevronDown size={18} className={`transition-transform duration-300 ${expanded === section.id ? 'rotate-180' : ''}`} />
+                  )}
+                </div>
               </button>
               <AnimatePresence>
                 {expanded === section.id && (
@@ -238,13 +317,15 @@ export default function SettingsPage() {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="px-4 pb-4 overflow-hidden"
+                    className="px-5 pb-5 overflow-hidden"
                   >
-                    {section.content}
+                    <div className="pt-2 border-t border-white/5">
+                      {section.content}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
+            </motion.div>
           ))}
         </div>
 

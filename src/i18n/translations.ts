@@ -41,6 +41,9 @@ export const translations = {
       thisMonth: "Ce mois",
       confirm: "Confirmer",
       no_results: "Aucun résultat trouvé pour",
+      apply: "Appliquer",
+      filters: "Filtres",
+      offline: "Hors ligne - En attente de connexion",
     },
     auth: {
       subtitle: "Gérez votre café intelligemment",
@@ -263,6 +266,9 @@ export const translations = {
       thisMonth: "This month",
       confirm: "Confirm",
       no_results: "No results found for",
+      apply: "Apply",
+      filters: "Filters",
+      offline: "Offline - Waiting for connection",
     },
     auth: {
       subtitle: "Manage your cafe smartly",

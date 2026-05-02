@@ -113,10 +113,10 @@ export default function ReportsPage() {
             <button
               key={p.id}
               onClick={() => setPeriod(p.id as any)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold border transition-all ${
+              className={`flex-shrink-0 px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest border transition-all ${
                 period === p.id 
                   ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' 
-                  : 'bg-surface2 text-text3 border-border hover:border-text3'
+                  : 'bg-surface/50 text-text3 border-white/5 hover:border-white/10 glass'
               }`}
             >
               {p.label}
@@ -124,66 +124,118 @@ export default function ReportsPage() {
           ))}
         </div>
 
-        {/* Basic Analytics Grid */}
-        <div className="grid grid-cols-2 gap-3 sticky top-14 pt-2 pb-2 bg-bg z-50">
-          <div className="bg-surface border border-border p-4 rounded-2xl shadow-sm">
-            <div className="flex items-center gap-2 text-text3 text-[10px] font-bold uppercase tracking-widest mb-1">
-              <Banknote size={12} className="text-accent" />
-              Revenu Total
+        {/* Technical Stats Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass border-white/5 p-5 rounded-3xl shadow-sm relative overflow-hidden group"
+          >
+            <div className="absolute -right-4 -top-4 w-16 h-16 bg-accent/5 rounded-full blur-2xl group-hover:bg-accent/10 transition-colors" />
+            <div className="flex flex-col gap-3 relative z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-accent/10 flex items-center justify-center text-accent">
+                  <Banknote size={12} />
+                </div>
+                <span className="text-[9px] font-black text-text3 uppercase tracking-[0.2em]">{t('reports.revenue') || 'Revenu'}</span>
+              </div>
+              <div className="text-xl font-mono font-extrabold text-accent leading-none">
+                {stats.revenue.toFixed(2)} <span className="text-[10px] opacity-60">DH</span>
+              </div>
             </div>
-            <div className="text-xl font-mono font-bold text-accent2">{stats.revenue.toFixed(2)} DH</div>
-          </div>
-          <div className="bg-surface border border-border p-4 rounded-2xl shadow-sm">
-            <div className="flex items-center gap-2 text-text3 text-[10px] font-bold uppercase tracking-widest mb-1">
-              <Activity size={12} className="text-text2" />
-              Commandes
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="glass border-white/5 p-5 rounded-3xl shadow-sm relative overflow-hidden group"
+          >
+            <div className="absolute -right-4 -top-4 w-16 h-16 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors" />
+            <div className="flex flex-col gap-3 relative z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-surface2 flex items-center justify-center text-text2">
+                  <Activity size={12} />
+                </div>
+                <span className="text-[9px] font-black text-text3 uppercase tracking-[0.2em]">Commandes</span>
+              </div>
+              <div className="text-xl font-mono font-extrabold text-text leading-none">
+                {stats.count} <span className="text-[10px] opacity-60 uppercase font-bold tracking-tighter">Sess.</span>
+              </div>
             </div>
-            <div className="text-xl font-mono font-bold text-text">{stats.count}</div>
-          </div>
-          <div className="bg-surface border border-border p-4 rounded-2xl shadow-sm">
-            <div className="flex items-center gap-2 text-text3 text-[10px] font-bold uppercase tracking-widest mb-1">
-              <Clock size={12} className="text-text2" />
-              Durée Moy.
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="glass border-white/5 p-5 rounded-3xl shadow-sm relative overflow-hidden group"
+          >
+            <div className="absolute -right-4 -top-4 w-16 h-16 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors" />
+            <div className="flex flex-col gap-3 relative z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-surface2 flex items-center justify-center text-text2">
+                  <Clock size={12} />
+                </div>
+                <span className="text-[9px] font-black text-text3 uppercase tracking-[0.2em]">Moyenne</span>
+              </div>
+              <div className="text-xl font-mono font-extrabold text-text leading-none">
+                {stats.avgDuration} <span className="text-[10px] opacity-60 uppercase font-bold tracking-tighter">Min.</span>
+              </div>
             </div>
-            <div className="text-xl font-mono font-bold text-text">{stats.avgDuration} min</div>
-          </div>
-          <div className="bg-surface border border-border p-4 rounded-2xl shadow-sm">
-            <div className="flex items-center gap-2 text-text3 text-[10px] font-bold uppercase tracking-widest mb-1">
-              <TrendingUp size={12} className="text-text2" />
-              Top Article
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="glass border-white/5 p-5 rounded-3xl shadow-sm relative overflow-hidden group"
+          >
+            <div className="absolute -right-4 -top-4 w-16 h-16 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors" />
+            <div className="flex flex-col gap-3 relative z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-surface2 flex items-center justify-center text-text2">
+                  <TrendingUp size={12} />
+                </div>
+                <span className="text-[9px] font-black text-text3 uppercase tracking-[0.2em]">Top Article</span>
+              </div>
+              <div className="text-xs font-bold text-text truncate leading-tight mt-1">
+                {bestSellingItem ? `${bestSellingItem.name} (${bestSellingItem.qty})` : '-'}
+              </div>
             </div>
-            <div className="text-sm font-bold text-text truncate mt-1">
-              {bestSellingItem ? `${bestSellingItem.name} (${bestSellingItem.qty})` : '-'}
-            </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Payment Breakdown */}
         <section className="space-y-4">
-          <h3 className="text-sm font-bold text-text">{t('reports.payment_breakdown')}</h3>
-          <div className="bg-surface border border-border rounded-2xl p-4 space-y-4">
+          <h3 className="text-[11px] font-black text-text3 uppercase tracking-[0.2em]">{t('reports.payment_breakdown')}</h3>
+          <div className="glass border-white/5 rounded-3xl p-6 space-y-6">
             {[
-              { id: 'cash', icon: Banknote, label: t('sessions.cash'), color: '#10b981' },
+              { id: 'cash', icon: Banknote, label: t('sessions.cash'), color: '#f97316' },
               { id: 'card', icon: CreditCard, label: t('sessions.card'), color: '#3b82f6' },
-              { id: 'account', icon: Wallet, label: t('sessions.account'), color: '#f59e0b' },
+              { id: 'account', icon: Wallet, label: t('sessions.account'), color: '#8b5cf6' },
               { id: 'free', icon: Gift, label: t('sessions.free'), color: '#ef4444' },
             ].map(method => {
               const amount = stats.payments[method.id] || 0
               const percentage = stats.revenue > 0 ? (amount / stats.revenue) * 100 : 0
               return (
-                <div key={method.id} className="space-y-2">
+                <div key={method.id} className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2 text-xs font-medium text-text2">
-                      <method.icon size={14} style={{ color: method.color }} />
-                      {method.label}
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${method.color}15` }}>
+                        <method.icon size={16} style={{ color: method.color }} />
+                      </div>
+                      <span className="text-xs font-bold text-text2 uppercase tracking-wide">{method.label}</span>
                     </div>
-                    <div className="text-xs font-mono font-bold text-text">{amount.toFixed(2)} DH</div>
+                    <div className="text-sm font-mono font-extrabold text-text">
+                      {amount.toFixed(2)} <span className="text-[10px] opacity-60">DH</span>
+                    </div>
                   </div>
-                  <div className="h-1.5 bg-surface2 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                     <motion.div 
                       initial={{ width: 0 }}
                       animate={{ width: `${percentage}%` }}
-                      className="h-full rounded-full"
+                      className="h-full rounded-full shadow-[0_0_8px_rgba(249,115,22,0.5)]"
                       style={{ backgroundColor: method.color }}
                     />
                   </div>

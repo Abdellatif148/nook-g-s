@@ -17,10 +17,11 @@ export const BottomNav = () => {
   }
 
   const navItems = [
-    { icon: Home, label: t('dashboard.quick_actions'), path: '/dashboard', permission: true },
-    { icon: Timer, label: t('dashboard.history'), path: '/sessions', permission: true },
-    { icon: Users, label: t('dashboard.clients'), path: '/clients', permission: hasPermission('clients') },
-    { icon: Settings, label: t('settings.title'), path: '/settings', permission: hasPermission('settings') },
+    { icon: Home, label: t('dashboard.home') || 'Accueil', path: '/dashboard', permission: true },
+    { icon: Timer, label: t('dashboard.sessions') || 'Sessions', path: '/sessions', permission: true },
+    { icon: BarChart2, label: 'Rapports', path: '/reports', permission: hasPermission('reports') },
+    { icon: Users, label: t('dashboard.clients') || 'Clients', path: '/clients', permission: hasPermission('clients') },
+    { icon: Settings, label: t('settings.title') || 'Paramètres', path: '/settings', permission: type === 'owner' || hasPermission('settings') },
   ]
 
   return (

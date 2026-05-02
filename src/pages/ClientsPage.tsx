@@ -120,10 +120,10 @@ export default function ClientsPage() {
             <button
               key={p.id}
               onClick={() => setFilter(p.id as any)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold border transition-all ${
+              className={`flex-shrink-0 px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest border transition-all ${
                 filter === p.id 
                   ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' 
-                  : 'bg-surface2 text-text3 border-border hover:border-text3'
+                  : 'bg-surface/50 text-text3 border-white/5 hover:border-white/10 glass'
               }`}
             >
               {p.label}
@@ -131,36 +131,51 @@ export default function ClientsPage() {
           ))}
         </div>
 
-        <div className="space-y-3">
-          {filteredClients.map((client) => (
-            <motion.div
-              key={client.id}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate(`/clients/${client.id}`)}
-              className="bg-surface border border-border rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:border-text3 transition-all"
-            >
-              <div className="flex items-center gap-4">
-                <Avatar name={client.name} />
-                <div>
-                  <div className="text-sm font-bold text-text">{client.name}</div>
-                  <div className="text-[10px] text-text3 font-medium">
-                    Dernière visite: {formatDistanceToNow(new Date(client.updated_at), { addSuffix: true, locale: fr })}
+        <div className="space-y-4">
+          <AnimatePresence mode="popLayout">
+            {filteredClients.map((client) => (
+              <motion.div
+                key={client.id}
+                layout
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate(`/clients/${client.id}`)}
+                className="glass border-white/5 rounded-3xl p-5 flex items-center justify-between cursor-pointer group hover:bg-white/[0.02] transition-all duration-300"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Avatar name={client.name} size={48} />
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-bg border-4 border-bg flex items-center justify-center">
+                      <div className={`w-2 h-2 rounded-full ${client.balance > 0 ? 'bg-success' : 'bg-error'}`} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-base font-bold text-text mb-0.5">{client.name}</div>
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-surface2 rounded-full text-[9px] font-bold text-text3 uppercase tracking-wider">
+                      <Clock size={10} />
+                      {formatDistanceToNow(new Date(client.updated_at), { addSuffix: true, locale: fr })}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <div className={`text-sm font-mono font-bold ${
-                    client.balance > 50 ? 'text-success' : client.balance < 10 ? 'text-error' : 'text-warning'
-                  }`}>
-                    {client.balance.toFixed(2)} DH
+                <div className="flex items-center gap-4">
+                  <div className="text-right flex flex-col items-end gap-0.5">
+                    <div className={`text-sm font-mono font-extrabold ${
+                      client.balance > 50 ? 'text-success' : client.balance < 10 ? 'text-error' : 'text-accent'
+                    }`}>
+                      {client.balance.toFixed(2)} <span className="text-[10px] opacity-60">DH</span>
+                    </div>
+                    <div className="text-[9px] font-black text-text3 uppercase tracking-[0.2em]">{t('clients.balance')}</div>
                   </div>
-                  <div className="text-[10px] text-text3 font-bold uppercase tracking-widest">{t('clients.balance')}</div>
+                  <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-text3 group-hover:text-text group-hover:bg-white/10 transition-all">
+                    <ChevronRight size={18} />
+                  </div>
                 </div>
-                <ChevronRight size={16} className="text-text3" />
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))}
+          </AnimatePresence>
 
           {filteredClients.length === 0 && !isLoading && (
             <div className="flex flex-col items-center justify-center py-12 text-text3">

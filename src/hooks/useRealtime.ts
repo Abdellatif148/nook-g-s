@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
+import { db } from '../lib/offlineDB'
 
 export const useRealtime = () => {
   const { cafe, type, staff, setStaff, logout } = useAuthStore()
@@ -12,6 +13,15 @@ export const useRealtime = () => {
 
     // Initial load
     const loadSessions = async () => {
+      if (!navigator.onLine) {
+         const localSessions = await db.sessions
+             .where('status').equals('active')
+             .reverse()
+             .sortBy('started_at');
+         setActiveSessions(localSessions);
+         return;
+      }
+      
       const { data } = await supabase
         .from('sessions')
         .select('*')
@@ -19,7 +29,10 @@ export const useRealtime = () => {
         .eq('status', 'active')
         .order('started_at', { ascending: false })
       
-      if (data) setActiveSessions(data)
+      if (data) {
+         setActiveSessions(data)
+         db.sessions.bulkPut(data)
+      }
     }
 
     loadSessions()

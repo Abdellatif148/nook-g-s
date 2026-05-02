@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
+  /* ... rest of theme ... */
   --color-bg: #080b12;
   --color-bg2: #0d1117;
   --color-surface: #111827;
@@ -29,9 +30,14 @@
   --radius-xl: 12px;
   --radius-2xl: 16px;
   --radius-3xl: 24px;
+
+  --shadow-glow: 0 0 20px rgba(249, 115, 22, 0.15);
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
 }
 
 @layer base {
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
+
   :root {
     --bg: #080b12;
     --bg2: #0d1117;
@@ -58,37 +64,58 @@
 
   body {
     @apply bg-bg text-text font-sans antialiased;
-    background-image: radial-gradient(circle at 2px 2px, var(--border) 1px, transparent 0);
-    background-size: 40px 40px;
+    background-image: 
+      radial-gradient(circle at 2px 2px, rgba(255, 255, 255, 0.03) 1px, transparent 0),
+      radial-gradient(circle at 50% -20%, rgba(249, 115, 22, 0.08) 0%, transparent 50%);
+    background-size: 32px 32px, 100% 100%;
+    background-attachment: fixed;
   }
 }
 
 @layer components {
-  button:not(.btn-primary):not(.btn-ghost):not(.btn-danger) {
-    @apply transition-all active:scale-95;
+  button {
+    @apply transition-transform active:scale-95;
+  }
+
+  .glass {
+    @apply backdrop-blur-2xl bg-surface/70 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)];
   }
 
   .card {
-    @apply bg-surface border border-border rounded-xl p-4;
+    @apply bg-surface/50 border border-border rounded-xl p-5 shadow-sm hover:border-border2 transition-all duration-300;
   }
   
   .input {
-    @apply bg-black/25 border border-border rounded-lg px-3.5 py-2.5 text-text text-sm h-11 w-full outline-none transition-all;
-  }
-  
-  .input:focus {
-    @apply border-accent ring-3 ring-accent/10;
+    @apply bg-black/30 border border-border rounded-xl px-4 py-3 text-text text-[15px] h-[52px] w-full 
+           outline-none transition-all placeholder:text-text3/40 
+           focus:border-accent focus:ring-4 focus:ring-accent/5 focus:bg-black/50;
   }
 
   .btn-primary {
-    @apply bg-linear-to-br from-accent to-[#ea6b0a] text-white font-semibold rounded-lg h-11 px-4 flex items-center justify-center gap-2 shadow-lg shadow-accent/30 transition-all hover:brightness-110 active:brightness-90 active:scale-95;
+    @apply bg-linear-to-br from-accent to-[#ea6b0a] text-white font-bold rounded-2xl h-[52px] px-8 
+           flex items-center justify-center gap-2 shadow-[0_12px_24px_-8px_rgba(249,115,22,0.5)]
+           transition-all hover:brightness-110 active:brightness-90 active:scale-95 disabled:opacity-50 disabled:grayscale;
   }
 
   .btn-ghost {
-    @apply bg-transparent border border-border text-text2 rounded-lg h-11 px-4 flex items-center justify-center gap-2 transition-all hover:bg-white/10 hover:text-text active:bg-white/5 active:scale-95;
+    @apply bg-white/5 border border-white/5 text-text2 rounded-2xl h-[52px] px-8 
+           flex items-center justify-center gap-2 transition-all backdrop-blur-md
+           hover:bg-white/10 hover:text-text active:scale-95;
   }
 
   .btn-danger {
-    @apply bg-error-dim border border-error/25 text-error rounded-lg h-11 px-4 flex items-center justify-center gap-2 transition-all hover:bg-error/20 active:bg-error/30 active:scale-95;
+    @apply bg-error/10 border border-error/20 text-error rounded-2xl h-[52px] px-8 
+           flex items-center justify-center gap-2 transition-all 
+           hover:bg-error/20 active:scale-95;
+  }
+
+  .btn-success {
+    @apply bg-success/10 border border-success/20 text-success rounded-2xl h-[52px] px-8 
+           flex items-center justify-center gap-2 transition-all 
+           hover:bg-success/20 active:scale-95;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-tight uppercase;
   }
 }

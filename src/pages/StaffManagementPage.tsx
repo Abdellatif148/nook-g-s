@@ -20,6 +20,10 @@ import { NumPad } from '../components/ui/NumPad'
 import { PINDots } from '../components/ui/PINDots'
 import { hashPIN } from '../lib/crypto'
 
+import { db } from '../lib/offlineDB'
+
+import { queueMutation } from '../lib/offlineSync'
+
 export default function StaffManagementPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -55,12 +59,23 @@ export default function StaffManagementPage() {
   const loadStaff = async () => {
     if (!cafe) return
     setIsLoading(true)
+
+    if (!navigator.onLine) {
+        const localStaff = await db.staff.toArray()
+        setStaffList(localStaff.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+        setIsLoading(false)
+        return
+    }
+
     const { data } = await supabase
       .from('staff')
       .select('*')
       .eq('cafe_id', cafe.id)
       .order('created_at', { ascending: false })
-    if (data) setStaffList(data)
+    if (data) {
+       setStaffList(data)
+       db.staff.bulkPut(data)
+    }
     setIsLoading(false)
   }
 
@@ -73,23 +88,26 @@ export default function StaffManagementPage() {
     setIsSaving(true)
     try {
       const pinHash = await hashPIN(pin)
-      const { error } = await supabase
-        .from('staff' as any)
-        .insert({
+      
+      const payload = {
+          id: crypto.randomUUID(),
           cafe_id: cafe.id,
           name,
           phone: phone || null,
           pin_hash: pinHash,
           permissions,
-          active: true
-        })
+          active: true,
+          created_at: new Date().toISOString()
+      };
+
+      await queueMutation('staff', 'insert', payload, payload);
       
-      if (error) throw error
-      
-      await logAction('staff_created', {
-        staff_name: name,
-        permissions
-      })
+      try {
+         await logAction('staff_created', {
+           staff_name: name,
+           permissions
+         })
+      } catch(e) {}
 
       addToast(t('staff.staff_added'), "success")
       setShowAdd(false)
@@ -400,32 +418,34 @@ export default function StaffManagementPage() {
           )}
 
           {(!showEdit || pin) && (
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-text3 uppercase tracking-widest">
+            <div className="space-y-4">
+              <label className="text-xs font-bold text-text3 uppercase tracking-widest text-center block w-full">
                 {showEdit ? t('staff.new_pin') : t('staff.pin_setup')}
               </label>
-              <div className="relative w-full">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-text3">
-                  <Lock className="w-4 h-4" />
+              
+              <div className="flex flex-col items-center gap-6">
+                <PINDots count={pin === ' ' ? 0 : pin.length} />
+                
+                <div className="w-full max-w-[280px]">
+                  <NumPad 
+                    onPress={(val) => {
+                      if (pin === ' ') setPin(val)
+                      else if (pin.length < 4) setPin(pin + val)
+                    }}
+                    onDelete={() => {
+                        if (pin === ' ') return
+                        setPin(pin.slice(0, -1))
+                    }}
+                  />
                 </div>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
-                  value={pin === ' ' ? '' : pin}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '')
-                    setPin(val)
-                  }}
-                  placeholder={t('auth.password')}
-                  className="input pl-11"
-                />
               </div>
+
               {showEdit && pin && (
-                <Button variant="ghost" size="sm" onClick={() => setPin('')}>
-                  {t('common.cancel')}
-                </Button>
+                <div className="flex justify-center">
+                  <Button variant="ghost" size="sm" onClick={() => setPin('')}>
+                    {t('common.cancel')}
+                  </Button>
+                </div>
               )}
               
               {pin.length === 4 && phone && name && (

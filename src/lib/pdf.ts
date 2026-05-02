@@ -53,6 +53,16 @@ export const generateReceiptPDF = (cafe: Cafe, session: Session) => {
   let y = 10;
   
   // Header
+  const customLogo = localStorage.getItem('nook_logo');
+  if (customLogo) {
+     try {
+       doc.addImage(customLogo, "PNG", 30, y, 20, 20);
+       y += 24;
+     } catch (e) {
+       y += 4;
+     }
+  }
+
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
   doc.text(cafe.name, 40, y, { align: 'center' }); y += 6;

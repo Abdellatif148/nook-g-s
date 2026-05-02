@@ -18,6 +18,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { format } from 'date-fns'
 import { queueMutation } from '../lib/offlineSync'
 import { generateReceiptPDF, generateReceiptText } from '../lib/pdf'
+import { db } from '../lib/offlineDB'
 
 export default function SessionDetailPage() {
   const { id } = useParams()
@@ -45,6 +46,16 @@ export default function SessionDetailPage() {
   useEffect(() => {
     const loadSession = async () => {
       if (!id) return
+      
+      if (!navigator.onLine) {
+        let localSess = await db.sessions.get(id);
+        if (localSess) {
+           setSession(localSess);
+           setIsLoading(false);
+           return;
+        }
+      }
+
       const { data, error } = await supabase
         .from('sessions')
         .select('*')
@@ -58,17 +69,30 @@ export default function SessionDetailPage() {
       }
       setSession(data)
       setIsLoading(false)
+      
+      // Update local cache
+      if (data) db.sessions.put(data)
     }
 
     const loadProducts = async () => {
       if (!cafe) return
+      
+      if (!navigator.onLine) {
+         const allProds = await db.products.toArray();
+         setProducts(allProds.filter(p => p.active).sort((a,b) => (a.sort_order || 0) - (b.sort_order || 0)));
+         return;
+      }
+
       const { data } = await supabase
         .from('products')
         .select('*')
         .eq('cafe_id', cafe.id)
         .eq('active', true)
         .order('sort_order')
-      if (data) setProducts(data)
+      if (data) {
+         setProducts(data)
+         db.products.bulkPut(data)
+      }
     }
 
     loadSession()
@@ -92,7 +116,9 @@ export default function SessionDetailPage() {
         setTimeCost(session.time_cost || 0)
       } else {
         const durationHours = diffMs / 3600000
-        setTimeCost(durationHours * session.rate_per_hour)
+        const isTimeBilling = session.rate_per_hour > 0;
+        const billedHours = isTimeBilling ? Math.max(1, durationHours) : durationHours;
+        setTimeCost(billedHours * session.rate_per_hour)
       }
       if (hours >= 3) setIsLong(true)
     }
@@ -173,7 +199,9 @@ export default function SessionDetailPage() {
       const start = new Date(session.started_at).getTime()
       const end = new Date().getTime()
       const durationMinutes = Math.floor((end - start) / 60000)
-      const finalTimeCost = (durationMinutes / 60) * session.rate_per_hour
+      const durationHours = durationMinutes / 60
+      const billedHours = session.rate_per_hour > 0 ? Math.max(1, durationHours) : durationHours
+      const finalTimeCost = billedHours * session.rate_per_hour
       const rawTotal = finalTimeCost + session.extras_total
       const totalAmount = Math.max(cafe?.premium_rate || 0, rawTotal)
 
@@ -359,111 +387,120 @@ export default function SessionDetailPage() {
           )}
         </motion.div>
 
-        {/* Bill Details */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-[10px] font-bold text-text3 uppercase tracking-widest">Détails de la facture</h3>
-          </div>
-
-          {/* Time Card */}
-          <div className="p-4 bg-surface border border-border rounded-2xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center text-accent">
-                <Clock size={20} />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-text">Temps de session</div>
-                <div className="text-[10px] text-text3 font-medium">
-                  {elapsed.split(':').slice(0, 2).join('h ')}min
-                </div>
-              </div>
+        {/* Premium Bill Details */}
+        <section className="relative mt-8">
+          <div className="bg-[#f8f9fa] text-gray-900 rounded-t-3xl rounded-b-xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+            {/* Header / Logo Area */}
+            <div className="p-6 text-center border-b-2 border-dashed border-gray-300 bg-white relative">
+               <div className="w-16 h-16 mx-auto bg-gray-900 text-white rounded-2xl flex items-center justify-center mb-3 shadow-md">
+                 <img src={localStorage.getItem('nook_logo') || "/favicon.svg"} alt="Logo" className="w-8 h-8 object-contain bg-white rounded-md p-1" />
+               </div>
+               <h2 className="text-xl font-black tracking-tight">{cafe?.name || 'Café'}</h2>
+               <div className="text-xs text-gray-500 font-medium mt-1">{cafe?.address || ''}</div>
+               <div className="flex justify-center mt-3">
+                 <div className="bg-gray-100 text-gray-600 border border-gray-200 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                    Facture
+                 </div>
+               </div>
+               
+               {/* Semi-circle cutouts for the ticket effect */}
+               <div className="absolute -bottom-3 -left-3 w-6 h-6 bg-bg rounded-full border-r border-t border-gray-100"></div>
+               <div className="absolute -bottom-3 -right-3 w-6 h-6 bg-bg rounded-full border-l border-t border-gray-100"></div>
             </div>
-            <div className="text-right">
-              <div className="text-sm font-mono font-bold text-accent2">
-                {timeCost.toFixed(2)} DH
-              </div>
-            </div>
-          </div>
 
-          {/* Extras Cards */}
-          {(session.extras as any[]).length > 0 && (
-            <div className="grid grid-cols-1 gap-3">
-              {(session.extras as any[]).map((extra, i) => (
-                <div key={i} className="p-4 bg-surface border border-border rounded-2xl flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-surface2 rounded-lg flex items-center justify-center text-text3">
-                      <ShoppingBag size={20} />
-                    </div>
-                    <div>
-                      <div className="text-sm font-bold text-text">{extra.name}</div>
-                      <div className="text-[10px] text-text3 font-medium">
-                        {extra.qty} × {extra.price.toFixed(2)} DH
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="text-sm font-mono font-bold text-text">
-                        {(extra.price * extra.qty).toFixed(2)} DH
-                      </div>
-                    </div>
-                    {type === 'owner' && session.status === 'active' && (
-                      <button 
-                        onClick={() => setItemToRemove(i)}
-                        className="p-2 -mr-2 text-text3 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+            {/* Bill Lines Area */}
+            <div className="p-6 pb-2 space-y-4">
+              {/* Time Line */}
+              <div className="flex justify-between items-start pb-4 border-b border-gray-200">
+                <div>
+                  <div className="text-sm font-bold text-gray-800">Temps de session</div>
+                  <div className="text-xs text-gray-500 font-medium mt-0.5">
+                    {elapsed.split(':').slice(0, 2).join('h ')}min
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="text-sm font-mono font-bold text-gray-900">
+                  {timeCost.toFixed(2)} DH
+                </div>
+              </div>
 
-          {/* Total Summary */}
-          <div className="p-4 bg-surface border border-accent/20 rounded-2xl flex justify-between items-center shadow-lg shadow-accent/5">
-            <div className="flex flex-col">
-              <div className="text-sm font-bold text-text">Total à payer</div>
-              {totalAmount > rawTotal && (
-                <div className="text-[10px] text-warning mt-1 italic">
-                  Minimum appliqué
+              {/* Extras Lines */}
+              {(session.extras as any[]).length > 0 && (
+                <div className="space-y-3 pb-4 border-b border-gray-200">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Consommations</div>
+                  {(session.extras as any[]).map((extra, i) => (
+                    <div key={i} className="flex justify-between items-center group relative">
+                      <div className="flex-1">
+                        <div className="text-sm font-bold text-gray-800">{extra.name}</div>
+                        <div className="text-[11px] text-gray-500 font-medium">
+                          {extra.qty} × {extra.price.toFixed(2)} DH
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-sm font-mono font-bold text-gray-900">
+                          {(extra.price * extra.qty).toFixed(2)} DH
+                        </div>
+                        {type === 'owner' && session.status === 'active' && (
+                          <button 
+                            onClick={() => setItemToRemove(i)}
+                            className="w-6 h-6 bg-red-100 text-red-500 rounded-full flex items-center justify-center hover:bg-red-200 transition-colors opacity-0 group-hover:opacity-100 absolute -right-2"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
+
+              {/* Total Calculation */}
+              <div className="pt-2 pb-6">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <div className="text-sm font-black text-gray-900 uppercase tracking-wider">Total à payer</div>
+                    {totalAmount > rawTotal && (
+                      <div className="text-[10px] text-orange-600 font-bold mt-1">
+                        * Inclut minimum facturable
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-3xl font-mono font-black text-orange-600 tracking-tighter">
+                    {totalAmount.toFixed(2)} <span className="text-xl">DH</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-mono font-extrabold text-accent2">{totalAmount.toFixed(2)} DH</div>
-          </div>
-          
-          {/* Facture Actions */}
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <button
-              onClick={() => {
-                if (cafe) {
-                  generateReceiptPDF(cafe, { ...session, time_cost: timeCost, total_amount: totalAmount });
-                }
-              }}
-              className="p-3 bg-surface border border-border rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-text2 hover:text-text hover:bg-surface2 transition-all active:scale-95 uppercase tracking-wider"
-            >
-              <FileText size={16} />
-              Télécharger
-            </button>
-            <button
-              onClick={() => {
-                if (cafe) {
-                  const text = generateReceiptText(cafe, { ...session, time_cost: timeCost, total_amount: totalAmount });
-                  const phone = session.customer_phone?.replace(/\D/g, '');
-                  if (phone) {
-                    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-                  } else {
-                    window.open(`https://wa.me/?text=${text}`, '_blank');
+            
+            {/* Action Bar Footer */}
+            <div className="bg-gray-100 p-4 border-t border-gray-200 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  if (cafe) {
+                    generateReceiptPDF(cafe, { ...session, time_cost: timeCost, total_amount: totalAmount });
                   }
-                }
-              }}
-              className="p-3 bg-success/10 border border-success/20 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-success hover:bg-success/20 transition-all active:scale-95 uppercase tracking-wider"
-            >
-              <FileText size={16} />
-              WhatsApp
-            </button>
+                }}
+                className="w-full py-3 bg-white border border-gray-300 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-gray-700 shadow-sm active:scale-95 transition-transform uppercase tracking-wider"
+              >
+                <FileText size={16} />
+                PDF
+              </button>
+              <button
+                onClick={() => {
+                  if (cafe) {
+                    const text = generateReceiptText(cafe, { ...session, time_cost: timeCost, total_amount: totalAmount });
+                    const phone = session.customer_phone?.replace(/\D/g, '');
+                    if (phone) {
+                      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+                    } else {
+                      window.open(`https://wa.me/?text=${text}`, '_blank');
+                    }
+                  }
+                }}
+                className="w-full py-3 bg-[#25D366] border border-[#128C7E] rounded-xl flex items-center justify-center gap-2 text-xs font-black text-white shadow-sm shadow-[#25D366]/20 active:scale-95 transition-transform uppercase tracking-wider"
+              >
+                WhatsApp
+              </button>
+            </div>
           </div>
         </section>
 

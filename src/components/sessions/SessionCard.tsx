@@ -52,30 +52,38 @@ export const SessionCard = ({ session, onEnd }: SessionCardProps) => {
   return (
     <motion.div
       layout
+      whileHover={{ y: -4, transition: { duration: 0.2 } }}
+      whileTap={{ scale: 0.98 }}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       onClick={() => onEnd(session)}
-      className={`card relative overflow-hidden transition-all duration-500 cursor-pointer ${
-        isLong ? 'border-error/50 bg-error/5 shadow-lg shadow-error/10' : ''
+      className={`relative p-5 rounded-2xl border transition-all duration-500 cursor-pointer overflow-hidden ${
+        isLong 
+          ? 'bg-error/5 border-error/40 shadow-2xl shadow-error/10' 
+          : 'bg-surface border-border hover:border-border2 shadow-sm'
       }`}
     >
       {isLong && (
         <>
-          <div className="absolute top-0 left-0 right-0 h-1 bg-error animate-pulse" />
-          <div className="absolute -right-8 -top-8 w-24 h-24 bg-error/10 rounded-full blur-2xl animate-pulse" />
+          <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-error/60 via-error to-error/60 animate-pulse" />
+          <div className="absolute -right-8 -top-8 w-32 h-32 bg-error/10 rounded-full blur-3xl animate-pulse" />
         </>
       )}
 
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="bg-accent-glow border border-accent-border px-2 py-0.5 rounded-full flex items-center gap-1.5 text-accent2">
-            <Armchair size={12} />
-            <span className="text-[11px] font-bold">Place {session.seat_number}</span>
+      <div className="flex items-start justify-between mb-5">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <div className={`badge ${isLong ? 'bg-error text-white' : 'bg-accent/10 text-accent border border-accent/20 font-bold'}`}>
+              <Armchair size={10} />
+              <span className="text-[10px]">Place {session.seat_number}</span>
+            </div>
+            <div className="w-1 h-1 rounded-full bg-text3" />
+            <div className="text-[10px] font-bold text-text3 tracking-wider uppercase">{format(new Date(session.started_at), 'HH:mm')}</div>
           </div>
-          <span className="text-sm font-semibold text-text">{session.customer_name}</span>
+          <h3 className="text-base font-bold text-text leading-tight">{session.customer_name}</h3>
         </div>
-        <div className="bg-surface2 px-2 py-0.5 rounded-full text-[10px] text-text3 font-medium">
+        <div className="h-6 px-2.5 bg-surface2/80 rounded-lg flex items-center text-[10px] font-mono font-bold text-text3 border border-white/5 uppercase tracking-wider">
           {session.rate_per_hour.toFixed(2)} DH/h
         </div>
       </div>
@@ -84,27 +92,29 @@ export const SessionCard = ({ session, onEnd }: SessionCardProps) => {
         <motion.div 
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-1.5 text-error text-[10px] font-black uppercase tracking-widest mb-3"
+          className="flex items-center gap-1.5 text-error text-[10px] font-black uppercase tracking-[0.2em] mb-4"
         >
-          <AlertCircle size={12} className="animate-bounce" />
-          Alerte: Session trop longue
+          <div className="w-2 h-2 rounded-full bg-error animate-ping" />
+          <span>ALERTE: SESSION LONGUE</span>
         </motion.div>
       )}
 
-      <div className="mt-4 flex items-center justify-between bg-surface2/50 border border-border/50 rounded-xl p-3">
-        <div className="flex gap-4">
-          <div>
-            <div className="text-[9px] text-text3 font-bold uppercase tracking-widest mb-1">{t('sessions.duration')}</div>
-            <div className="text-[17px] font-mono font-bold text-text leading-none tracking-tight">{elapsed}</div>
+      <div className="mt-4 flex items-center justify-between glass border-white/5 rounded-2xl p-4">
+        <div className="flex items-center gap-6">
+          <div className="space-y-1.5">
+            <div className="text-[9px] text-text3 font-black uppercase tracking-[0.2em]">{t('sessions.duration')}</div>
+            <div className="text-xl font-mono font-extrabold text-text leading-none tracking-tighter">{elapsed}</div>
           </div>
-          <div className="w-px bg-border/50" />
-          <div>
-            <div className="text-[9px] text-text3 font-bold uppercase tracking-widest mb-1">{t('sessions.amount')}</div>
-            <div className="text-[17px] font-mono font-bold text-accent2 leading-none tracking-tight">{amount.toFixed(2)} DH</div>
+          
+          <div className="w-px h-8 bg-linear-to-b from-transparent via-border to-transparent" />
+          
+          <div className="space-y-1.5">
+            <div className="text-[9px] text-text3 font-black uppercase tracking-[0.2em]">{t('sessions.amount')}</div>
+            <div className="text-xl font-mono font-extrabold text-accent leading-none tracking-tighter">{amount.toFixed(2)} DH</div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -115,9 +125,8 @@ export const SessionCard = ({ session, onEnd }: SessionCardProps) => {
                 generateReceiptPDF(cafe, { ...session, duration_minutes: durationMinutes, time_cost: rawTimeCost, total_amount: amount });
               }
             }}
-            className="flex flex-col items-center justify-center w-11 h-11 shrink-0 bg-surface border border-border text-text2 rounded-xl transition-all hover:bg-surface2 hover:text-text active:scale-90"
-            title="Télécharger la facture"
-            aria-label="Télécharger la facture"
+            className="w-10 h-10 flex items-center justify-center bg-surface2/50 border border-border/50 text-text2 rounded-xl transition-all hover:bg-surface2 hover:text-text hover:border-text/10 active:scale-90"
+            title="Recu"
           >
             <FileText size={16} />
           </button>
@@ -127,9 +136,7 @@ export const SessionCard = ({ session, onEnd }: SessionCardProps) => {
               e.stopPropagation();
               onEnd(session);
             }}
-            className="flex items-center justify-center w-11 h-11 shrink-0 bg-gradient-to-br from-error/10 to-error/5 border border-error/20 text-error rounded-xl transition-all hover:bg-error/20 active:scale-90 shadow-sm shadow-error/5"
-            title={t('sessions.end')}
-            aria-label={t('sessions.end')}
+            className="w-12 h-10 flex items-center justify-center bg-error/10 border border-error/20 text-error rounded-xl transition-all hover:bg-error/20 active:scale-90"
           >
             <StopCircle size={20} className="fill-error/20" />
           </button>
