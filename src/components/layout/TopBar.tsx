@@ -1,12 +1,15 @@
-import { LogOut, Settings } from 'lucide-react'
+import { LogOut, Settings, Users } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
 import { useNavigate, Link } from 'react-router-dom'
 import { GlobalSearch } from './GlobalSearch'
 
 export const TopBar = () => {
-  const { type, cafe, logout } = useAuthStore()
+  const { type, staff, cafe, logout } = useAuthStore()
   const navigate = useNavigate()
+
+  const hasSettings = type === 'owner' || !!staff?.permissions?.settings;
+  const hasClients = type === 'owner' || !!staff?.permissions?.clients;
 
   const handleLogout = async () => {
     if (type === 'owner') {
@@ -32,12 +35,23 @@ export const TopBar = () => {
 
       <div className="flex items-center gap-1">
         <GlobalSearch />
-        <button 
-          onClick={() => navigate('/settings')}
-          className="w-8 h-8 ml-2 flex items-center justify-center rounded-full bg-surface2 text-text2 hover:text-text transition-colors"
-        >
-          <Settings size={18} />
-        </button>
+        
+        {hasSettings ? (
+          <button 
+            onClick={() => navigate('/settings')}
+            className="w-8 h-8 ml-2 flex items-center justify-center rounded-full bg-surface2 text-text2 hover:text-text transition-colors"
+          >
+            <Settings size={18} />
+          </button>
+        ) : hasClients ? (
+          <button 
+            onClick={() => navigate('/clients')}
+            className="w-8 h-8 ml-2 flex items-center justify-center rounded-full bg-surface2 text-text2 hover:text-text transition-colors"
+          >
+            <Users size={18} />
+          </button>
+        ) : null}
+
         {type === 'staff' && (
           <button 
             onClick={handleLogout}

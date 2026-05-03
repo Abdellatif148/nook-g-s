@@ -8,7 +8,22 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase credentials missing. Please check your .env file.')
 }
 
+const customFetch = async (url: string | Request | URL, options?: RequestInit) => {
+  if (!supabaseUrl) {
+    return new Response(JSON.stringify({ error: 'Supabase credentials missing', message: 'Failed to fetch' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  return fetch(url, options);
+}
+
 export const supabase = createClient<any>(
-  supabaseUrl || '',
-  supabaseAnonKey || ''
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder',
+  {
+    global: {
+      fetch: customFetch
+    }
+  }
 )
