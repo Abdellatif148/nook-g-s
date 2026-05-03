@@ -9,8 +9,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 const customFetch = async (url: string | Request | URL, options?: RequestInit) => {
-  if (!supabaseUrl) {
-    return new Response(JSON.stringify({ error: 'Supabase credentials missing', message: 'Failed to fetch' }), {
+  if (!supabaseUrl || supabaseUrl === 'https://placeholder.supabase.co') {
+    return new Response(JSON.stringify({ error: 'Supabase credentials missing', message: 'Veuillez configurer Supabase dans le fichier .env' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' }
     });
