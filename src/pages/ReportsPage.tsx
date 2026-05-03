@@ -4,7 +4,8 @@ import { motion } from 'motion/react'
 import { 
   BarChart2, TrendingUp, Users, Clock as ClockIcon, 
   Banknote, CreditCard, Wallet, Gift,
-  Calendar, ChevronDown, Loader2, Activity, ChevronLeft
+  Calendar, ChevronDown, Loader2, Activity, ChevronLeft,
+  Download
 } from 'lucide-react'
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
@@ -18,6 +19,8 @@ import { Session } from '../types'
 import { TopBar } from '../components/layout/TopBar'
 import { format, startOfDay, subDays, subMonths } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 export default function ReportsPage() {
   const { t } = useTranslation()
@@ -108,6 +111,76 @@ export default function ReportsPage() {
     }
     return acc
   }, [])
+
+  const generatePDF = () => {
+    if (!cafe) return
+
+    const doc = new jsPDF()
+    
+    // Header
+    doc.setFontSize(22)
+    doc.text(cafe.name, 14, 20)
+    doc.setFontSize(12)
+    doc.text(`Rapport - Période: ${period === 'today' ? t('common.today') : period === 'week' ? t('common.thisWeek') : t('common.thisMonth')}`, 14, 30)
+    doc.setFontSize(10)
+    doc.text(`${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, 36)
+
+    // Summary Statistics
+    doc.setFontSize(14)
+    doc.text('Résumé', 14, 50)
+    
+    autoTable(doc, {
+      startY: 55,
+      head: [['Sessions', 'Revenu Total', 'Moyenne (min)', 'Paiements (Espèces/Carte/Compte/Gratuit)']],
+      body: [
+        [
+          stats.count.toString(), 
+          `${stats.revenue.toFixed(2)} DH`, 
+          stats.avgDuration.toString(),
+          `${stats.payments.cash?.toFixed(2) || '0'} / ${stats.payments.card?.toFixed(2) || '0'} / ${stats.payments.account?.toFixed(2) || '0'} / ${stats.payments.free?.toFixed(2) || '0'}`
+        ]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [249, 115, 22] }
+    })
+
+    // Session Details
+    let finalY = (doc as any).lastAutoTable.finalY || 80
+    doc.setFontSize(14)
+    doc.text('Détails des Sessions', 14, finalY + 15)
+
+    const sessionData = sessions.map(s => [
+      format(new Date(s.ended_at!), 'dd/MM/yyyy HH:mm'),
+      s.customer_name || '-',
+      s.seat_number?.toString() || '-',
+      s.duration_minutes?.toString() || '0',
+      `${s.total_amount.toFixed(2)} DH`,
+      s.payment_method || '-'
+    ])
+
+    autoTable(doc, {
+      startY: finalY + 20,
+      head: [['Date', 'Client', 'Place', 'Durée (min)', 'Montant', 'Mode de Paiement']],
+      body: sessionData,
+      theme: 'striped',
+      headStyles: { fillColor: [40, 40, 40] }
+    })
+
+    // Footer
+    const pageCount = (doc as any).internal.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        doc.setFontSize(10)
+        doc.text(
+            `Page ${i} - Généré par Nook OS`,
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: 'center' }
+        )
+    }
+
+    doc.save(`Rapport_${cafe.name}_${period}.pdf`)
+  }
 
   return (
     <div className="min-h-screen bg-bg pb-8">
@@ -255,6 +328,14 @@ export default function ReportsPage() {
             })}
           </div>
         </section>
+
+        <button 
+          onClick={generatePDF}
+          className="w-full h-12 mt-6 rounded-xl bg-accent text-white font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-accent/20"
+        >
+          <Download size={18} />
+          {t('reports.download') || 'Télécharger le PDF'}
+        </button>
       </main>
 
     </div>
