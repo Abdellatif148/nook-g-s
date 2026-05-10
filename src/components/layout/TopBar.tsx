@@ -1,5 +1,6 @@
 import { LogOut, Settings, Users } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
+import { useUIStore } from '../../stores/uiStore'
 import { supabase } from '../../lib/supabase'
 import { useNavigate, Link } from 'react-router-dom'
 import { GlobalSearch } from './GlobalSearch'
@@ -7,18 +8,11 @@ import { useEffect, useState } from 'react'
 
 export const TopBar = () => {
   const { type, staff, cafe, logout } = useAuthStore()
+  const { logo } = useUIStore()
   const navigate = useNavigate()
-  const [logoBase64, setLogoBase64] = useState<string | null>(null)
 
   const hasSettings = type === 'owner' || !!staff?.permissions?.settings;
   const hasClients = type === 'owner' || !!staff?.permissions?.clients;
-
-  useEffect(() => {
-    const logo = localStorage.getItem('nook_logo')
-    if (logo) {
-      setLogoBase64(logo)
-    }
-  }, [])
 
   const handleLogout = async () => {
     if (type === 'owner') {
@@ -34,8 +28,8 @@ export const TopBar = () => {
       <div className="absolute inset-0 bg-bg/90 backdrop-blur-xl border-b border-border -z-10" />
       
       <Link to="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-        {logoBase64 ? (
-           <img src={logoBase64} alt={cafe?.name} className="w-8 h-8 object-contain rounded-md drop-shadow-sm" />
+        {logo ? (
+           <img src={logo} alt={cafe?.name} className="w-8 h-8 object-contain rounded-md drop-shadow-sm bg-white/10 p-0.5" />
         ) : (
            <div className="w-8 h-8 bg-accent text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-[0_2px_10px_rgba(249,115,22,0.3)]">
              {cafe?.name?.charAt(0).toUpperCase() || 'N'}

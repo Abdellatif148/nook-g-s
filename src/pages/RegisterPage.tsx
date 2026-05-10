@@ -1,35 +1,43 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { motion } from 'motion/react'
-import { User, Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import { useUIStore } from '../stores/uiStore'
-import { useAuthStore } from '../stores/authStore'
-import { useTranslation, useLanguageStore } from '../i18n'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { motion } from "motion/react";
+import {
+  User,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  Loader2,
+  ArrowLeft,
+} from "lucide-react";
+import { supabase } from "../lib/supabase";
+import { useUIStore } from "../stores/uiStore";
+import { useAuthStore } from "../stores/authStore";
+import { useTranslation, useLanguageStore } from "../i18n";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
 
 export default function RegisterPage() {
-  const { t } = useTranslation()
-  const navigate = useNavigate()
-  const addToast = useUIStore((state) => state.addToast)
-  const { type, isLoading: authLoading } = useAuthStore()
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { addToast, logo } = useUIStore();
+  const { type, isLoading: authLoading } = useAuthStore();
 
-  const [isLoading, setIsLoading] = useState(false)
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!authLoading && type) {
-      navigate('/dashboard', { replace: true })
+      navigate("/dashboard", { replace: true });
     }
-  }, [type, authLoading, navigate])
+  }, [type, authLoading, navigate]);
 
   const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -39,54 +47,76 @@ export default function RegisterPage() {
             full_name: fullName,
           },
         },
-      })
-      if (error) throw error
-      
+      });
+      if (error) throw error;
+
       if (data.user) {
-        addToast(t('common.success'), 'success')
-        navigate('/wizard')
+        addToast(t("common.success"), "success");
+        navigate("/wizard");
       }
     } catch (error: any) {
-      addToast(error.message, 'error')
+      addToast(error.message, "error");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const getPasswordStrength = () => {
-    let strength = 0
-    if (password.length >= 8) strength++
-    if (/[A-Z]/.test(password)) strength++
-    if (/[0-9]/.test(password)) strength++
-    if (/[^A-Za-z0-9]/.test(password)) strength++
-    return strength
-  }
+    let strength = 0;
+    if (password.length >= 8) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
+    return strength;
+  };
 
-  const strength = getPasswordStrength()
+  const strength = getPasswordStrength();
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-bg relative overflow-hidden">
-      <div className="absolute inset-0 opacity-10 pointer-events-none" 
-           style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, var(--border) 1px, transparent 0)', backgroundSize: '40px 40px' }} />
+      <div
+        className="absolute inset-0 opacity-10 pointer-events-none"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 2px 2px, var(--border) 1px, transparent 0)",
+          backgroundSize: "40px 40px",
+        }}
+      />
 
       {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 p-5 flex items-center justify-between z-20">
-        <button 
-          onClick={() => navigate('/login')}
+        <button
+          onClick={() => navigate("/login")}
           className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center text-text2 hover:text-text transition-colors"
         >
           <ArrowLeft size={18} />
         </button>
-        <button 
+        <button
           onClick={() => {
-            const { language, setLanguage } = useLanguageStore.getState()
-            setLanguage(language === 'fr' ? 'en' : 'fr')
+            const { language, setLanguage } = useLanguageStore.getState();
+            setLanguage(language === "fr" ? "en" : "fr");
           }}
           className="flex items-center px-3 py-1.5 rounded-full bg-surface/50 border border-border text-xs font-bold tracking-wide transition-colors"
         >
-          <span className={useLanguageStore().language === 'fr' ? 'text-accent' : 'text-text3'}>FR</span>
+          <span
+            className={
+              useLanguageStore().language === "fr"
+                ? "text-accent"
+                : "text-text3"
+            }
+          >
+            FR
+          </span>
           <span className="text-text3 mx-1.5 font-medium">/</span>
-          <span className={useLanguageStore().language === 'en' ? 'text-accent' : 'text-text3'}>EN</span>
+          <span
+            className={
+              useLanguageStore().language === "en"
+                ? "text-accent"
+                : "text-text3"
+            }
+          >
+            EN
+          </span>
         </button>
       </div>
 
@@ -96,9 +126,13 @@ export default function RegisterPage() {
         className="w-full max-w-[420px] bg-surface border border-border rounded-2xl p-8 shadow-2xl z-10"
       >
         <div className="flex flex-col items-center mb-8">
-          <img src="/favicon.svg" className="w-11 h-11 mb-3 drop-shadow-lg" alt="Nook OS" />
+          <img
+            src={logo || "/favicon.svg"}
+            className="w-11 h-11 mb-3 drop-shadow-lg object-contain bg-white/10 rounded-lg p-1"
+            alt="Nook OS"
+          />
           <h1 className="text-xl font-bold text-text">Nook OS</h1>
-          <p className="text-sm text-text2 mt-1">{t('auth.subtitle')}</p>
+          <p className="text-sm text-text2 mt-1">{t("auth.subtitle")}</p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-4">
@@ -111,7 +145,7 @@ export default function RegisterPage() {
           />
           <Input
             type="email"
-            placeholder={t('auth.email')}
+            placeholder={t("auth.email")}
             icon={<Mail size={16} />}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -119,11 +153,15 @@ export default function RegisterPage() {
           />
           <div className="space-y-2">
             <Input
-              type={showPassword ? 'text' : 'password'}
-              placeholder={t('auth.password')}
+              type={showPassword ? "text" : "password"}
+              placeholder={t("auth.password")}
               icon={<Lock size={16} />}
               rightElement={
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-text3 hover:text-text">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-text3 hover:text-text"
+                >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               }
@@ -137,26 +175,35 @@ export default function RegisterPage() {
                   key={i}
                   className={`flex-1 rounded-full transition-colors ${
                     i < strength
-                      ? strength === 1 ? 'bg-error' : strength === 2 ? 'bg-warning' : strength === 3 ? 'bg-yellow-500' : 'bg-success'
-                      : 'bg-border'
+                      ? strength === 1
+                        ? "bg-error"
+                        : strength === 2
+                          ? "bg-warning"
+                          : strength === 3
+                            ? "bg-yellow-500"
+                            : "bg-success"
+                      : "bg-border"
                   }`}
                 />
               ))}
             </div>
           </div>
-          
+
           <Button type="submit" className="w-full" isLoading={isLoading}>
-            {t('auth.register')}
+            {t("auth.register")}
           </Button>
-          
+
           <p className="text-center text-sm text-text3 pt-2">
-            {t('auth.already_account')}
-            <Link to="/login" className="text-accent hover:underline font-medium">
-              {t('auth.login_link')}
+            {t("auth.already_account")}
+            <Link
+              to="/login"
+              className="text-accent hover:underline font-medium"
+            >
+              {t("auth.login_link")}
             </Link>
           </p>
         </form>
       </motion.div>
     </div>
-  )
+  );
 }

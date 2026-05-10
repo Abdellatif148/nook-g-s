@@ -5,10 +5,10 @@ import {
   BarChart2, TrendingUp, Users, Clock as ClockIcon, 
   Banknote, CreditCard, Wallet, Gift,
   Calendar, ChevronDown, Loader2, Activity, ChevronLeft,
-  Download
+  Download, Coffee, Utensils, Package
 } from 'lucide-react'
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, Cell 
 } from 'recharts'
 import { supabase } from '../lib/supabase'
@@ -19,6 +19,7 @@ import { Session } from '../types'
 import { TopBar } from '../components/layout/TopBar'
 import { format, startOfDay, subDays, subMonths } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -28,8 +29,10 @@ export default function ReportsPage() {
   const { cafe } = useAuthStore()
   
   const [sessions, setSessions] = useState<Session[]>([])
+  const [products, setProducts] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('week')
+  const [isGenerating, setIsGenerating] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -40,14 +43,31 @@ export default function ReportsPage() {
       if (period === 'week') startDate = subDays(startDate, 7)
       if (period === 'month') startDate = subMonths(startDate, 1)
 
+      // Load products safely first
+      let localProducts: any[] = []
+      try {
+        localProducts = await db.products.where('cafe_id').equals(cafe.id).toArray()
+      } catch (e) {
+        console.warn('Failed to load local products', e)
+      }
+
       // Load local data first
-      const localSessions = await db.sessions
+      let localSessions: Session[] = []
+      try {
+        localSessions = await db.sessions
           .where('status').equals('completed')
           .filter(s => new Date(s.ended_at!) >= startDate)
           .sortBy('ended_at');
+      } catch (e) {
+        console.warn('Failed to load local sessions', e)
+      }
       
       if (localSessions.length > 0) {
         setSessions(localSessions)
+      }
+
+      if (localProducts.length > 0) {
+        setProducts(localProducts)
       }
 
       if (!navigator.onLine) {
@@ -55,18 +75,30 @@ export default function ReportsPage() {
          return
       }
 
-      const { data } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('cafe_id', cafe.id)
-        .eq('status', 'completed')
-        .gte('ended_at', startDate.toISOString())
-        .order('ended_at', { ascending: true })
+      const [sessionsRes, productsRes] = await Promise.all([
+        supabase
+          .from('sessions')
+          .select('*')
+          .eq('cafe_id', cafe.id)
+          .eq('status', 'completed')
+          .gte('ended_at', startDate.toISOString())
+          .order('ended_at', { ascending: true }),
+        supabase
+          .from('products')
+          .select('*')
+          .eq('cafe_id', cafe.id)
+      ])
       
-      if (data) {
-         setSessions(data)
-         db.sessions.bulkPut(data)
+      if (sessionsRes.data) {
+         setSessions(sessionsRes.data)
+         db.sessions.bulkPut(sessionsRes.data)
       }
+      
+      if (productsRes.data) {
+         setProducts(productsRes.data)
+         db.products.bulkPut(productsRes.data)
+      }
+
       setIsLoading(false)
     }
 
@@ -100,19 +132,33 @@ export default function ReportsPage() {
 
   const bestSellingItem = (Object.values(itemSales) as {name: string, qty: number}[]).sort((a, b) => b.qty - a.qty)[0]
 
+  const categoryRevenue = sessions.reduce((acc: Record<string, number>, s) => {
+    if (Array.isArray(s.extras)) {
+      s.extras.forEach((extra: any) => {
+        const product = products.find(p => p.id === extra.id)
+        const category = product?.category || 'autre'
+        acc[category] = (acc[category] || 0) + (extra.price * extra.qty)
+      })
+    }
+    return acc
+  }, { boisson: 0, nourriture: 0, autre: 0 })
+
   // Chart Data
   const chartData = sessions.reduce((acc: any[], s) => {
-    const date = format(new Date(s.ended_at!), 'dd/MM')
-    const existing = acc.find(d => d.date === date)
+    const dateStr = period === 'today' 
+      ? format(new Date(s.ended_at!), 'HH:00') 
+      : format(new Date(s.ended_at!), 'dd/MM')
+    
+    const existing = acc.find(d => d.date === dateStr)
     if (existing) {
       existing.revenue += s.total_amount
     } else {
-      acc.push({ date, revenue: s.total_amount })
+      acc.push({ date: dateStr, revenue: s.total_amount })
     }
     return acc
   }, [])
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
     if (!cafe) return
 
     const doc = new jsPDF()
@@ -144,8 +190,27 @@ export default function ReportsPage() {
       headStyles: { fillColor: [249, 115, 22] }
     })
 
-    // Session Details
+    // Category Breakdown
     let finalY = (doc as any).lastAutoTable.finalY || 80
+    doc.setFontSize(14)
+    doc.text('Revenus par Catégorie', 14, finalY + 15)
+
+    autoTable(doc, {
+      startY: finalY + 20,
+      head: [['Boissons', 'Nourriture', 'Autres']],
+      body: [
+        [
+          `${(categoryRevenue['boisson'] || 0).toFixed(2)} DH`,
+          `${(categoryRevenue['nourriture'] || 0).toFixed(2)} DH`,
+          `${(categoryRevenue['autre'] || 0).toFixed(2)} DH`
+        ]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [40, 40, 40] }
+    })
+
+    // Session Details
+    finalY = (doc as any).lastAutoTable.finalY || 120
     doc.setFontSize(14)
     doc.text('Détails des Sessions', 14, finalY + 15)
 
@@ -165,6 +230,33 @@ export default function ReportsPage() {
       theme: 'striped',
       headStyles: { fillColor: [40, 40, 40] }
     })
+
+    // Capture Chart
+    finalY = (doc as any).lastAutoTable.finalY || 100
+    try {
+      const chartElement = document.getElementById('report-chart-container')
+      if (chartElement) {
+        // Add new page if not enough space
+        if (finalY > doc.internal.pageSize.height - 100) {
+          doc.addPage()
+          finalY = 20
+        } else {
+          finalY += 20
+        }
+        
+        doc.setFontSize(14)
+        doc.text('Évolution des Revenus', 14, finalY)
+        
+        const canvas = await html2canvas(chartElement, { scale: 2, backgroundColor: '#080b12' })
+        const imgData = canvas.toDataURL('image/png')
+        
+        const imgWidth = doc.internal.pageSize.width - 28
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        doc.addImage(imgData, 'PNG', 14, finalY + 10, imgWidth, imgHeight)
+      }
+    } catch (err) {
+      console.error('Error capturing chart', err)
+    }
 
     // Footer
     const pageCount = (doc as any).internal.getNumberOfPages()
@@ -289,6 +381,92 @@ export default function ReportsPage() {
             </div>
           </motion.div>
         </div>
+
+        {/* Chart Section */}
+        <section className="space-y-4" id="report-chart-container">
+          <h3 className="text-[11px] font-black text-text3 uppercase tracking-[0.2em]">Évolution des Revenus</h3>
+          <div className="glass border-white/5 rounded-3xl p-4 h-[240px]">
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#263548" vertical={false} />
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#475569" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false} 
+                  />
+                  <YAxis 
+                    stroke="#475569" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    tickFormatter={(val) => `${val}`}
+                  />
+                  <Tooltip 
+                    cursor={{ stroke: 'rgba(255,255,255,0.05)', strokeWidth: 2 }}
+                    contentStyle={{ backgroundColor: '#111827', borderColor: '#1f2d45', borderRadius: '12px' }}
+                    itemStyle={{ color: '#f97316', fontWeight: 'bold' }}
+                    labelStyle={{ color: '#94a3b8', marginBottom: '4px' }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="#f97316" 
+                    strokeWidth={3} 
+                    dot={{ fill: '#080b12', stroke: '#f97316', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, fill: '#ea6b0a', stroke: '#ffffff' }}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-text3 text-sm">
+                Aucune donnée disponible
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Category Breakdown */}
+        <section className="space-y-4">
+          <h3 className="text-[11px] font-black text-text3 uppercase tracking-[0.2em]">{t('reports.category_breakdown') || 'Par Catégorie'}</h3>
+          <div className="glass border-white/5 rounded-3xl p-6 space-y-6">
+            {[
+              { id: 'boisson', icon: Coffee, label: t('cat.boisson') || 'Boissons', color: '#0ea5e9' },
+              { id: 'nourriture', icon: Utensils, label: t('cat.nourriture') || 'Nourriture', color: '#f59e0b' },
+              { id: 'autre', icon: Package, label: t('cat.autre') || 'Autres', color: '#8b5cf6' },
+            ].map(cat => {
+              const amount = categoryRevenue[cat.id] || 0
+              const totalExtras = Object.values(categoryRevenue).reduce((a, b) => a + b, 0)
+              const percentage = totalExtras > 0 ? (amount / totalExtras) * 100 : 0
+              return (
+                <div key={cat.id} className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${cat.color}15` }}>
+                        <cat.icon size={16} style={{ color: cat.color }} />
+                      </div>
+                      <span className="text-xs font-bold text-text2 uppercase tracking-wide">{cat.label}</span>
+                    </div>
+                    <div className="text-sm font-mono font-extrabold text-text">
+                      {amount.toFixed(2)} <span className="text-[10px] opacity-60">DH</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: cat.color, boxShadow: `0 0 8px ${cat.color}80` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
 
         {/* Payment Breakdown */}
         <section className="space-y-4">

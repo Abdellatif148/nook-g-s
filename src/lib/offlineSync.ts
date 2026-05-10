@@ -10,6 +10,7 @@ export interface SyncOperation {
   action: 'insert' | 'update' | 'delete';
   payload: any;
   timestamp: number;
+  retries?: number;
 }
 
 const getQueue = (): SyncOperation[] => {
@@ -137,12 +138,20 @@ export const processSyncQueue = async () => {
       let payload = { ...op.payload };
       // We explicitly keep the UUID so it matches the client-side generated one
 
+      let error = null;
       if (op.action === 'insert') {
-        await query.insert(payload);
+        const { error: err } = await query.insert(payload);
+        error = err;
       } else if (op.action === 'update') {
-        await query.update(payload).eq('id', payload.id);
+        const { error: err } = await query.update(payload).eq('id', payload.id);
+        error = err;
       } else if (op.action === 'delete') {
-        await query.delete().eq('id', payload.id);
+        const { error: err } = await query.delete().eq('id', payload.id);
+        error = err;
+      }
+
+      if (error) {
+        throw error;
       }
 
       // Sync offline DB immediately for local consistancy
@@ -160,9 +169,29 @@ export const processSyncQueue = async () => {
 
       // Remove from queue upon success
       newQueue = newQueue.filter(item => item.id !== op.id);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Sync failed for op', op, e);
+      
+      // Do not increment retry count for network errors
+      if (e.message?.includes('Failed to fetch') || !navigator.onLine) {
+        hasErrors = true;
+        continue;
+      }
+      
       hasErrors = true;
+      
+      const opIndex = newQueue.findIndex(item => item.id === op.id);
+      if (opIndex !== -1) {
+         newQueue[opIndex].retries = (newQueue[opIndex].retries || 0) + 1;
+         
+         if (newQueue[opIndex].retries! >= 3) {
+            newQueue = newQueue.filter(item => item.id !== op.id);
+            useUIStore.getState().addToast(
+              `L'opération hors-ligne (${op.action} sur ${op.table}) a échoué 3 fois. Elle a été supprimée de la file d'attente pour éviter les blocages.`, 
+              "error"
+            );
+         }
+      }
     }
   }
 
